@@ -1,0 +1,42 @@
+{
+  "os": "Linux-6.8.0-45-generic-x86_64-with-glibc2.35",
+  "python": "CPython 3.10.12",
+  "startedAt": "2025-03-13T21:46:42.049829Z",
+  "program": "/root/hw5/train.py",
+  "codePath": "train.py",
+  "git": {
+    "remote": "https://github.com/QingxuanKong/11785-hw5.git",
+    "commit": "cfcdd6adfec762446d05075b46cbad4ab589c452"
+  },
+  "email": "kongqingxuan98@gmail.com",
+  "root": "/root/hw5",
+  "host": "a603ae2dcc8d",
+  "executable": "/usr/bin/python",
+  "codePathLocal": "train.py",
+  "cpu_count": 24,
+  "cpu_count_logical": 48,
+  "gpu": "Tesla V100-PCIE-16GB",
+  "gpu_count": 1,
+  "disk": {
+    "/": {
+      "total": "21474836480",
+      "used": "3015057408"
+    }
+  },
+  "memory": {
+    "total": "405360275456"
+  },
+  "cpu": {
+    "count": 24,
+    "countLogical": 48
+  },
+  "gpu_nvidia": [
+    {
+      "name": "Tesla V100-PCIE-16GB",
+      "memoryTotal": "17179869184",
+      "cudaCores": 5120,
+      "architecture": "Volta"
+    }
+  ],
+  "cudaVersion": "12.6"
+}

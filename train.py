@@ -62,6 +62,9 @@ def parse_args():
     )
 
     # training
+    parser.add_argument("--DEBUG", type=str, default=None, help="debug_mode")
+    parser.add_argument("--wandb_key", type=str, default=None, help="wandb_key")
+    parser.add_argument("--project_name", type=str, default=None, help="project_name")
     parser.add_argument("--run_name", type=str, default=None, help="run_name")
     parser.add_argument(
         "--output_dir", type=str, default="experiments", help="output folder"
@@ -227,6 +230,9 @@ def main():
         train_dataset = datasets.CIFAR10(
             args.data_dir, train=True, transform=transform, download=True
         )
+        subset_size = len(train_dataset) // 10
+        indices = np.random.choice(len(train_dataset), subset_size, replace=False)
+        train_dataset = torch.utils.data.Subset(train_dataset, indices)
 
     # TODO: setup dataloader
     sampler = None
@@ -253,6 +259,9 @@ def main():
     args.total_batch_size = total_batch_size
 
     # setup experiment folder
+    if not os.path.exists(args.output_dir):
+        os.makedirs(args.output_dir)
+
     if args.run_name is None:
         args.run_name = f"exp-{len(os.listdir(args.output_dir))}"
     else:
@@ -376,8 +385,11 @@ def main():
             file_yaml.dump(experiment_config, f)
 
     # start tracker
-    if is_primary(args):
-        wandb_logger = wandb.init(project="ddpm", name=args.run_name, config=vars(args))
+    if is_primary(args) and not args.DEBUG:
+        wandb.login(key=args.wandb_key)
+        wandb_logger = wandb.init(
+            project=args.project_name, name=args.run_name, config=vars(args)
+        )
 
     # Start training
     if is_primary(args):
@@ -445,7 +457,10 @@ def main():
             noise = torch.randn_like(images)
 
             # TODO: sample timestep t
-            timesteps = scheduler.set_timesteps(args.num_inference_steps, device)
+            batch_size = images.size(0)
+            timesteps = torch.randint(
+                0, scheduler.num_train_timesteps, (batch_size,), device=images.device
+            )
 
             # TODO: add noise to images using scheduler
             noisy_images = scheduler.add_noise(images, noise, timesteps)
@@ -479,7 +494,8 @@ def main():
                 logger.info(
                     f"Epoch {epoch+1}/{args.num_epochs}, Step {step}/{num_update_steps_per_epoch}, Loss {loss.item()} ({loss_m.avg})"
                 )
-                wandb_logger.log({"loss": loss_m.avg})
+                if not args.DEBUG:
+                    wandb_logger.log({"loss": loss_m.avg})
 
         # validation
         # send unet to evaluation mode
@@ -495,7 +511,12 @@ def main():
             gen_images = pipeline(None)
         else:
             # TODO: fill pipeline
-            gen_images = pipeline(None)
+            gen_images = pipeline(
+                batch_size=args.batch_size,
+                num_inference_steps=args.num_inference_steps,
+                generator=generator,
+                device=device,
+            )
 
         # create a blank canvas for the grid
         grid_image = Image.new("RGB", (4 * args.image_size, 1 * args.image_size))
@@ -506,7 +527,7 @@ def main():
             grid_image.paste(image, (x, y))
 
         # Send to wandb
-        if is_primary(args):
+        if is_primary(args) and not args.DEBUG:
             wandb_logger.log({"gen_images": wandb.Image(grid_image)})
 
         # save checkpoint

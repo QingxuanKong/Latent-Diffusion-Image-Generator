@@ -95,7 +95,12 @@ class DDPMPipeline:
             uncond_embeds = None
 
         # TODO: starts with random noise
-        image = randn_tensor(image_shape, generator=generator, device=device)
+        print(
+            f"DEBUG: image_shape={image_shape}, generator={generator}, device={device}"
+        )
+        image = randn_tensor(
+            image_shape, generator=generator, device=device, dtype=torch.float32
+        )
 
         # TODO: set step values using set_timesteps of scheduler
         self.scheduler.set_timesteps(num_inference_steps, device)
@@ -114,6 +119,7 @@ class DDPMPipeline:
                 c = None
 
             # TODO: 1. predict noise model_output
+            print(f"DEBUG: image={image}, model_input={model_input}, t={t}")
             model_output = self.unet(model_input, t)  # what is c
 
             if guidance_scale is not None or guidance_scale != 1.0:
@@ -121,7 +127,7 @@ class DDPMPipeline:
                 uncond_model_output, cond_model_output = model_output.chunk(2)
                 model_output = None
 
-            # TODO: 2. compute previous image: x_t -> x_t-1 using scheduler
+            # TODO: 2. compute previous image: x_t -> x_t-1 (less noisy) using scheduler
             image = self.scheduler.step(model_output, t, image, generator)
 
         # NOTE: this is for latent DDPM

@@ -1,18 +1,23 @@
-run_name: ddpm
+DEBUG: True
+wandb_key: b6dff554fc854aea97af8dccb735c241a19a6615
+project_name: dl-hw5
+run_name: test
+
 seed: 42
+dataset: cifar10 #test
 data_dir: ./data
 image_size: 128
-batch_size: #BATCH_SIZE 
-num_workers: #NUM_WORKERS
-num_classes: #NUM_CLASSES
-num_epochs: #NUM_EPOCHS
-learning_rate: #LR
-weight_decay: #WD
-num_train_timesteps: #TRAINING_TIMESTEPS
-num_inference_steps: #INFERENCE_TIMESTEPS
-beta_start: #BETA START
-beta_end: #BETA END
-beta_schedule: #BETA SCHEDULE
+# batch_size: #BATCH_SIZE 
+num_workers: 4 #NUM_WORKERS
+num_classes: 10 #NUM_CLASSES
+num_epochs: 2 #NUM_EPOCHS
+# learning_rate: #LR
+# weight_decay: #WD
+num_train_timesteps: 100 #TRAINING_TIMESTEPS
+num_inference_steps: 50 #INFERENCE_TIMESTEPS
+# beta_start: #BETA START
+# beta_end: #BETA END
+# beta_schedule: #BETA SCHEDULE
 
 variance_type: fixed_small
 predictor_type: epsilon
