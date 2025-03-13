@@ -2,3 +2,4 @@
 data/
 runpod_hw5.sh
 imagenet100_128x128.tar.gz
+experiments/
