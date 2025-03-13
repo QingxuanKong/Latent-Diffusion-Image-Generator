@@ -43,6 +43,12 @@ def parse_args():
 
     # data
     parser.add_argument(
+        "--dataset",
+        type=str,
+        default="imagenet100",
+        help="dataset name",
+    )
+    parser.add_argument(
         "--data_dir",
         type=str,
         default="./data/imagenet100_128x128/train",
@@ -215,7 +221,12 @@ def main():
         ]
     )
     # TOOD: use image folder for your train dataset
-    train_dataset = datasets.ImageFolder(args.data_dir, transform=transform)
+    if args.dataset == "imagenet100":
+        train_dataset = datasets.ImageFolder(args.data_dir, transform=transform)
+    elif args.dataset == "cifar10":
+        train_dataset = datasets.CIFAR10(
+            args.data_dir, train=True, transform=transform, download=True
+        )
 
     # TODO: setup dataloader
     sampler = None
