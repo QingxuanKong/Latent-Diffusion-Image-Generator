@@ -54,6 +54,12 @@ def parse_args():
         default="./data/imagenet100_128x128/train",
         help="data folder",
     )
+    parser.add_argument(
+        "--subset",
+        type=float,
+        default=1.0,
+        help="subset of dataset to use",
+    )
     parser.add_argument("--image_size", type=int, default=128, help="image size")
     parser.add_argument("--batch_size", type=int, default=4, help="per gpu batch size")
     parser.add_argument("--num_workers", type=int, default=8, help="batch size")
@@ -230,9 +236,10 @@ def main():
         train_dataset = datasets.CIFAR10(
             args.data_dir, train=True, transform=transform, download=True
         )
-        subset_size = len(train_dataset)
-        indices = np.random.choice(len(train_dataset), subset_size, replace=False)
-        train_dataset = torch.utils.data.Subset(train_dataset, indices)
+
+    subset_size = int(len(train_dataset) * args.subset)
+    indices = np.random.choice(len(train_dataset), subset_size, replace=False)
+    train_dataset = torch.utils.data.Subset(train_dataset, indices)
 
     # TODO: setup dataloader
     sampler = None
