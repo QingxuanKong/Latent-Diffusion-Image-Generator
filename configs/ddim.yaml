@@ -11,12 +11,12 @@ data_dir: ./data
 image_size: 128
 # batch_size: #BATCH_SIZE 
 num_workers: 4 #NUM_WORKERS
-num_classes: 10 #NUM_CLASSES
-num_epochs: 2 #NUM_EPOCHS
+# num_classes: #NUM_CLASSES
+num_epochs: 200 #NUM_EPOCHS
 # learning_rate: #LR
 # weight_decay: #WD
-num_train_timesteps: 60 #TRAINING_TIMESTEPS
-num_inference_steps: 30 #INFERENCE_TIMESTEPS
+num_train_timesteps: 1000 #TRAINING_TIMESTEPS
+num_inference_steps: 200 #INFERENCE_TIMESTEPS
 # beta_start: #BETA START
 # beta_end: #BETA END
 # beta_schedule: #BETA SCHEDULE
