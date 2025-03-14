@@ -230,7 +230,7 @@ def main():
         train_dataset = datasets.CIFAR10(
             args.data_dir, train=True, transform=transform, download=True
         )
-        subset_size = len(train_dataset) // 10
+        subset_size = len(train_dataset) // 20
         indices = np.random.choice(len(train_dataset), subset_size, replace=False)
         train_dataset = torch.utils.data.Subset(train_dataset, indices)
 
@@ -363,7 +363,17 @@ def main():
     vae_wo_ddp = vae
     # TODO: setup ddim
     if args.use_ddim:
-        scheduler_wo_ddp = DDIMScheduler(None)
+        scheduler_wo_ddp = DDIMScheduler(
+            num_train_timesteps=args.num_train_timesteps,
+            num_inference_steps=args.num_inference_steps,
+            beta_start=args.beta_start,
+            beta_end=args.beta_end,
+            beta_schedule=args.beta_schedule,
+            variance_type=args.variance_type,
+            prediction_type=args.prediction_type,
+            clip_sample=args.clip_sample,
+            clip_sample_range=args.clip_sample_range,
+        )
     else:
         scheduler_wo_ddp = scheduler
 
@@ -511,6 +521,7 @@ def main():
             gen_images = pipeline(None)
         else:
             # TODO: fill pipeline
+            # ERROR
             gen_images = pipeline(
                 batch_size=args.batch_size,
                 num_inference_steps=args.num_inference_steps,

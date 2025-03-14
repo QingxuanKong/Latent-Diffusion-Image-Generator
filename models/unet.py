@@ -107,7 +107,6 @@ class UNet(nn.Module):
         if not torch.is_tensor(t):
             t = torch.tensor([t], dtype=torch.long, device=x.device)
         elif torch.is_tensor(t) and len(t.shape) == 0:
-            print(f"DEBUG: x={x}")
             t = t[None].to(x.device)
 
         # broadcast to batch dimension in a way that's compatible with ONNX/Core ML

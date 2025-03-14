@@ -95,9 +95,6 @@ class DDPMPipeline:
             uncond_embeds = None
 
         # TODO: starts with random noise
-        print(
-            f"DEBUG: image_shape={image_shape}, generator={generator}, device={device}"
-        )
         image = randn_tensor(
             image_shape, generator=generator, device=device, dtype=torch.float32
         )
@@ -109,7 +106,7 @@ class DDPMPipeline:
         for t in self.progress_bar(self.scheduler.timesteps):
 
             # NOTE: this is for CFG
-            if guidance_scale is not None or guidance_scale != 1.0:
+            if guidance_scale is not None and guidance_scale != 1.0:
                 # TODO: implement cfg
                 model_input = None
                 c = None
@@ -119,10 +116,9 @@ class DDPMPipeline:
                 c = None
 
             # TODO: 1. predict noise model_output
-            print(f"DEBUG: image={image}, model_input={model_input}, t={t}")
             model_output = self.unet(model_input, t)  # what is c
 
-            if guidance_scale is not None or guidance_scale != 1.0:
+            if guidance_scale is not None and guidance_scale != 1.0:
                 # TODO: implement cfg
                 uncond_model_output, cond_model_output = model_output.chunk(2)
                 model_output = None

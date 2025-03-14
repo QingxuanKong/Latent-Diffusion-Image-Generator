@@ -277,8 +277,10 @@ class DDPMScheduler(nn.Module):
 
         # 6. Add noise
         variance = 0
+        device = model_output.device
+        variance_noise = torch.zeros_like(model_output)
+
         if t > 0:
-            device = model_output.device
             variance_noise = randn_tensor(
                 model_output.shape,
                 generator=generator,
