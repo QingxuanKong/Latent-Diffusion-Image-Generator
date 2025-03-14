@@ -230,7 +230,7 @@ def main():
         train_dataset = datasets.CIFAR10(
             args.data_dir, train=True, transform=transform, download=True
         )
-        subset_size = len(train_dataset) // 20
+        subset_size = len(train_dataset)
         indices = np.random.choice(len(train_dataset), subset_size, replace=False)
         train_dataset = torch.utils.data.Subset(train_dataset, indices)
 
