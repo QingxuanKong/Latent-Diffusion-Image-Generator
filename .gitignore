@@ -3,3 +3,4 @@ data/
 imagenet100_128x128.tar.gz
 experiments/
 wandb/
+__pycache__/
