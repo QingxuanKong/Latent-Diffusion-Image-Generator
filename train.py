@@ -299,7 +299,7 @@ def main():
     num_params = sum(p.numel() for p in unet.parameters() if p.requires_grad)
     logger.info(f"Number of parameters: {num_params / 10 ** 6:.2f}M")
 
-    # TODO: ddpm shceduler
+    # TODO: ddpm scheduler
     scheduler = DDPMScheduler(
         num_train_timesteps=args.num_train_timesteps,
         num_inference_steps=args.num_inference_steps,

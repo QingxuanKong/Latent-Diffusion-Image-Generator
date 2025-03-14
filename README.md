@@ -11,7 +11,7 @@ python train.py --config configs/ddpm.yaml
 **Inference and Evaluating**
 
 ```
-python inference.py inference.py
+python inference.py
 ```
 
 # 1. Download the data
@@ -54,7 +54,7 @@ Implement the DDIM from scratch:
 
 Implement the Latent DDPM.
 
-The pre-trained weights of VAE and basic modules are provided. 
+The pre-trained weights of VAE and basic modules are provided.
 
 Download the pretrained weight here: and put it under a folder named 'pretrained' (create one if it doesn't exsit)
 
