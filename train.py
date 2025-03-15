@@ -55,6 +55,12 @@ def parse_args():
         help="data folder",
     )
     parser.add_argument(
+        "--val_data_dir",
+        type=str,
+        default="./data/imagenet100_128x128/validation",
+        help="validation data folder",
+    )
+    parser.add_argument(
         "--subset",
         type=float,
         default=1.0,
@@ -230,6 +236,7 @@ def main():
         ]
     )
     # TOOD: use image folder for your train dataset
+    print(f"Data directory absolute path: {os.path.abspath(args.data_dir)}")
     if args.dataset == "imagenet100":
         train_dataset = datasets.ImageFolder(args.data_dir, transform=transform)
     elif args.dataset == "cifar10":
@@ -275,7 +282,6 @@ def main():
         args.run_name = f"exp-{len(os.listdir(args.output_dir))}-{args.run_name}"
     output_dir = os.path.join(args.output_dir, args.run_name)
     save_dir = os.path.join(output_dir, "checkpoints")
-    os.makedirs(args.output_dir, exist_ok=True)
     if is_primary(args):
         os.makedirs(output_dir, exist_ok=True)
         os.makedirs(save_dir, exist_ok=True)
@@ -383,6 +389,7 @@ def main():
         )
     else:
         scheduler_wo_ddp = scheduler
+    scheduler_wo_ddp = scheduler_wo_ddp.to(device)
 
     # TODO: setup evaluation pipeline
     # NOTE: this pipeline is not differentiable and only for evaluatin
@@ -439,7 +446,7 @@ def main():
 
         loss_m = AverageMeter()
 
-        # TODO: set unet and scheduelr to train
+        # TODO: set unet and scheduler to train
         unet.train()
         scheduler.train()
 
@@ -474,7 +481,6 @@ def main():
             noise = torch.randn_like(images)
 
             # TODO: sample timestep t
-            batch_size = images.size(0)
             timesteps = torch.randint(
                 0, scheduler.num_train_timesteps, (batch_size,), device=images.device
             )

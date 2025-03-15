@@ -11,12 +11,13 @@ from tqdm import tqdm
 from PIL import Image
 import torch.nn.functional as F
 
+from torchvision import datasets, transforms
 from torchvision.utils import make_grid
 
 from models import UNet, VAE, ClassEmbedder
 from schedulers import DDPMScheduler, DDIMScheduler
 from pipelines import DDPMPipeline
-from utils import seed_everything, load_checkpoint
+from utils import seed_everything, load_checkpoint, is_primary
 
 from train import parse_args
 
@@ -24,6 +25,13 @@ logger = get_logger(__name__)
 
 
 def main():
+    # start tracker
+    if is_primary(args) and not args.DEBUG:
+        wandb.login(key=args.wandb_key)
+        wandb_logger = wandb.init(
+            project=args.project_name, name=args.run_name, config=vars(args)
+        )
+
     # parse arguments
     args = parse_args()
 
@@ -62,7 +70,18 @@ def main():
     logger.info(f"Number of parameters: {num_params / 10 ** 6:.2f}M")
 
     # TODO: ddpm scheduler
-    scheduler = DDPMScheduler(None)
+    scheduler = DDPMScheduler(
+        num_train_timesteps=args.num_train_timesteps,
+        num_inference_steps=args.num_inference_steps,
+        beta_start=args.beta_start,
+        beta_end=args.beta_end,
+        beta_schedule=args.beta_schedule,
+        variance_type=args.variance_type,
+        prediction_type=args.prediction_type,
+        clip_sample=args.clip_sample,
+        clip_sample_range=args.clip_sample_range,
+    )
+
     # vae
     vae = None
     if args.latent_ddpm:
@@ -85,11 +104,27 @@ def main():
 
     # scheduler
     if args.use_ddim:
-        scheduler_class = DDIMScheduler
+        scheduler = DDIMScheduler(
+            num_train_timesteps=args.num_train_timesteps,
+            num_inference_steps=args.num_inference_steps,
+            beta_start=args.beta_start,
+            beta_end=args.beta_end,
+            beta_schedule=args.beta_schedule,
+            variance_type=args.variance_type,
+            prediction_type=args.prediction_type,
+            clip_sample=args.clip_sample,
+            clip_sample_range=args.clip_sample_range,
+        )
     else:
-        scheduler_class = DDPMScheduler
-    # TOOD: scheduler
-    scheduler = scheduler_class(None)
+        scheduler = scheduler
+
+    # # scheduler
+    # if args.use_ddim:
+    #     scheduler_class = DDIMScheduler
+    # else:
+    #     scheduler_class = DDPMScheduler
+    # # TOOD: scheduler
+    # scheduler = scheduler_class(None)
 
     # load checkpoint
     load_checkpoint(
@@ -101,7 +136,9 @@ def main():
     )
 
     # TODO: pipeline
-    pipeline = DDPMPipeline(None)
+    pipeline = DDPMPipeline(
+        unet=unet, scheduler=scheduler, vae=vae, class_embedder=class_embedder
+    )
 
     logger.info("***** Running Infrence *****")
 
@@ -118,11 +155,81 @@ def main():
             all_images.append(gen_images)
     else:
         # generate 5000 images
-        for _ in tqdm(range(0, 5000, batch_size)):
-            gen_images = None
+        total_images = 5000
+        remaining = total_images
+
+        while remaining > 0:
+            curr_batch_size = min(batch_size, remaining)
+            gen_images = pipeline(
+                batch_size=curr_batch_size,
+                num_inference_steps=args.num_inference_steps,
+                generator=generator,
+                device=device,
+            )
+            # why need to rescale
             all_images.append(gen_images)
+            remaining -= curr_batch_size
+
+    all_images = torch.cat(all_images, dim=0)
+    # sample from all_images
+    sample_images = None
+    grid_image = Image.new("RGB", (4 * args.image_size, 1 * args.image_size))
+    for i, image in enumerate(sample_images):
+        x = (i % 4) * args.image_size
+        y = 0
+        grid_image.paste(image, (x, y))
+
+    if is_primary(args) and not args.DEBUG:
+        wandb_logger.log({"infer_images": wandb.Image(grid_image)})
 
     # TODO: load validation images as reference batch
+    transform = transforms.Compose(
+        [
+            transforms.Resize((args.image_size, args.image_size)),
+            transforms.ToTensor(),
+            transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),
+        ]
+    )
+
+    if args.dataset == "imagenet100":
+        val_dataset = datasets.ImageFolder(args.val_data_dir, transform=transform)
+    elif args.dataset == "cifar10":
+        val_dataset = datasets.CIFAR10(
+            args.data_dir, train=False, transform=transform, download=True
+        )
+
+    subset_size = int(len(val_dataset) * args.subset)
+    indices = np.random.choice(len(val_dataset), subset_size, replace=False)
+    val_dataset = torch.utils.data.Subset(val_dataset, indices)
+
+    sampler = None
+    if args.distributed:
+        sampler = torch.utils.data.distributed.DistributedSampler(
+            val_dataset,
+            num_replicas=args.world_size,
+            rank=args.rank,
+            shuffle=False,  # No shuffling for inference
+        )
+
+    val_loader = torch.utils.data.DataLoader(
+        val_dataset,
+        batch_size=args.batch_size,
+        shuffle=False,
+        num_workers=args.num_workers,
+        pin_memory=True,
+        sampler=sampler,
+        drop_last=False,
+    )
+
+    real_images = []
+    for batch, _ in tqdm(val_loader, desc="Loading validation images"):
+        real_images.append(batch)
+        if (
+            len(real_images) * batch_size >= total_images
+        ):  # Use same number of real images as generated
+            break
+
+    real_images = torch.cat(real_images, dim=0)[:5000]  # should i load all then sample?
 
     # TODO: using torchmetrics for evaluation, check the documents of torchmetrics
     import torchmetrics
