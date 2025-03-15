@@ -230,9 +230,9 @@ def main():
     transform = transforms.Compose(
         [
             transforms.Resize((args.image_size, args.image_size)),
+            transforms.RandomHorizontalFlip(p=0.5),
             transforms.ToTensor(),
             transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5]),
-            transforms.RandomHorizontalFlip(p=0.5),
         ]
     )
     # TOOD: use image folder for your train dataset

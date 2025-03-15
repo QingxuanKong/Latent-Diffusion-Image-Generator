@@ -1,21 +1,21 @@
 DEBUG: False
 wandb_key: b6dff554fc854aea97af8dccb735c241a19a6615
 project_name: dl-hw5
-run_name: test
+run_name: cifar10-test
 
 seed: 42
 dataset: cifar10 #test
 data_dir: ./data
-subset: 0.01
+subset: 1.0
 image_size: 128
 # batch_size: #BATCH_SIZE 
 num_workers: 4 #NUM_WORKERS
 # num_classes: #NUM_CLASSES
-num_epochs: 100 #NUM_EPOCHS
-learning_rate: 5e-5 #LR
+num_epochs: 10 #NUM_EPOCHS
+learning_rate: 1e-4 #LR
 # weight_decay: #WD
-num_train_timesteps: 500 #TRAINING_TIMESTEPS
-num_inference_steps: 500 #INFERENCE_TIMESTEPS
+num_train_timesteps: 100 #TRAINING_TIMESTEPS
+num_inference_steps: 100 #INFERENCE_TIMESTEPS
 # beta_start: #BETA START
 # beta_end: #BETA END
 # beta_schedule: #BETA SCHEDULE
