@@ -43,28 +43,10 @@ def parse_args():
 
     # data
     parser.add_argument(
-        "--dataset",
-        type=str,
-        default="imagenet100",
-        help="dataset name",
-    )
-    parser.add_argument(
         "--data_dir",
         type=str,
         default="./data/imagenet100_128x128/train",
         help="data folder",
-    )
-    parser.add_argument(
-        "--val_data_dir",
-        type=str,
-        default="./data/imagenet100_128x128/validation",
-        help="validation data folder",
-    )
-    parser.add_argument(
-        "--subset",
-        type=float,
-        default=1.0,
-        help="subset of dataset to use",
     )
     parser.add_argument("--image_size", type=int, default=128, help="image size")
     parser.add_argument("--batch_size", type=int, default=4, help="per gpu batch size")
@@ -223,6 +205,9 @@ def main():
         logger.info(f"Training with a single process on 1 device ({args.device}).")
     assert args.rank >= 0
 
+    # -------------------------------------------
+    # ------------------dataset------------------
+    # -------------------------------------------
     # setup dataset
     logger.info("Creating dataset")
     # TODO: use transform to normalize your images to [-1, 1]
@@ -237,16 +222,7 @@ def main():
     )
     # TOOD: use image folder for your train dataset
     print(f"Data directory absolute path: {os.path.abspath(args.data_dir)}")
-    if args.dataset == "imagenet100":
-        train_dataset = datasets.ImageFolder(args.data_dir, transform=transform)
-    elif args.dataset == "cifar10":
-        train_dataset = datasets.CIFAR10(
-            args.data_dir, train=True, transform=transform, download=True
-        )
-
-    subset_size = int(len(train_dataset) * args.subset)
-    indices = np.random.choice(len(train_dataset), subset_size, replace=False)
-    train_dataset = torch.utils.data.Subset(train_dataset, indices)
+    train_dataset = datasets.ImageFolder(args.data_dir, transform=transform)
 
     # TODO: setup dataloader
     sampler = None
@@ -266,12 +242,16 @@ def main():
         pin_memory=True,
         sampler=sampler,
         drop_last=True,
+        persistent_workers=True,
     )
 
     # calculate total batch_size
     total_batch_size = args.batch_size * args.world_size
     args.total_batch_size = total_batch_size
 
+    # -------------------------------------------
+    # ---------------set up folder---------------
+    # -------------------------------------------
     # setup experiment folder
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
@@ -286,6 +266,9 @@ def main():
         os.makedirs(output_dir, exist_ok=True)
         os.makedirs(save_dir, exist_ok=True)
 
+    # -------------------------------------------
+    # ---------set up model and scheduler--------
+    # -------------------------------------------
     # setup model
     logger.info("Creating model")
     # unet
@@ -318,6 +301,23 @@ def main():
         clip_sample_range=args.clip_sample_range,
     )
 
+    # TODO: setup ddim
+    if args.use_ddim:
+        scheduler_wo_ddp = DDIMScheduler(
+            num_train_timesteps=args.num_train_timesteps,
+            num_inference_steps=args.num_inference_steps,
+            beta_start=args.beta_start,
+            beta_end=args.beta_end,
+            beta_schedule=args.beta_schedule,
+            variance_type=args.variance_type,
+            prediction_type=args.prediction_type,
+            clip_sample=args.clip_sample,
+            clip_sample_range=args.clip_sample_range,
+        )
+    else:
+        scheduler_wo_ddp = scheduler
+    scheduler_wo_ddp = scheduler_wo_ddp.to(device)
+
     # NOTE: this is for latent DDPM
     vae = None
     if args.latent_ddpm:
@@ -340,19 +340,28 @@ def main():
     if class_embedder:
         class_embedder = class_embedder.to(device)
 
+    # -------------------------------------------
+    # -----set up optimizer and scheduler--------
+    # -------------------------------------------
     # TODO: setup optimizer
     optimizer = torch.optim.AdamW(
         unet.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
     )
     # TODO: setup scheduler
     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=args.num_epochs * len(train_loader), eta_min=1e-6
-    )
+        optimizer, T_max=50, eta_min=1e-6
+    )  # todo: change tmax, eta_min
+
+    # todo: check this
+    scaler = torch.amp.GradScaler(enabled=args.mixed_precision != "none")
 
     # max train steps
     num_update_steps_per_epoch = len(train_loader)
     args.max_train_steps = args.num_epochs * num_update_steps_per_epoch
 
+    # -------------------------------------------
+    # -----set up distributed training-----------
+    # -------------------------------------------
     #  setup distributed training
     if args.distributed:
         unet = torch.nn.parallel.DistributedDataParallel(
@@ -374,23 +383,10 @@ def main():
         unet_wo_ddp = unet
         class_embedder_wo_ddp = class_embedder
     vae_wo_ddp = vae
-    # TODO: setup ddim
-    if args.use_ddim:
-        scheduler_wo_ddp = DDIMScheduler(
-            num_train_timesteps=args.num_train_timesteps,
-            num_inference_steps=args.num_inference_steps,
-            beta_start=args.beta_start,
-            beta_end=args.beta_end,
-            beta_schedule=args.beta_schedule,
-            variance_type=args.variance_type,
-            prediction_type=args.prediction_type,
-            clip_sample=args.clip_sample,
-            clip_sample_range=args.clip_sample_range,
-        )
-    else:
-        scheduler_wo_ddp = scheduler
-    scheduler_wo_ddp = scheduler_wo_ddp.to(device)
 
+    # -------------------------------------------
+    # ------set up evaluation training-----------
+    # -------------------------------------------
     # TODO: setup evaluation pipeline
     # NOTE: this pipeline is not differentiable and only for evaluatin
     pipeline = DDPMPipeline(
@@ -400,6 +396,9 @@ def main():
         class_embedder=class_embedder_wo_ddp,
     )
 
+    # -------------------------------------------
+    # ----------------dump config----------------
+    # -------------------------------------------
     # dump config file
     if is_primary(args):
         experiment_config = vars(args)
@@ -408,6 +407,9 @@ def main():
             file_yaml = yaml.YAML()
             file_yaml.dump(experiment_config, f)
 
+    # -------------------------------------------
+    # --------------------log--------------------
+    # -------------------------------------------
     # start tracker
     if is_primary(args) and not args.DEBUG:
         wandb.login(key=args.wandb_key)
@@ -430,12 +432,18 @@ def main():
             f"  Total optimization steps per epoch {num_update_steps_per_epoch}"
         )
         logger.info(f"  Total optimization steps = {args.max_train_steps}")
+
+    # -------------------------------------------
+    # ----------------experiment-----------------
+    # -------------------------------------------
     # Only show the progress bar once on each machine.
     progress_bar = tqdm(range(args.max_train_steps), disable=not is_primary(args))
 
-    # training
     for epoch in range(args.num_epochs):
 
+        # -------------------------------------------
+        # -------------------train-------------------
+        # -------------------------------------------
         # set epoch for distributed sampler, this is for distribution training
         if hasattr(train_loader.sampler, "set_epoch"):
             train_loader.sampler.set_epoch(epoch)
@@ -489,25 +497,42 @@ def main():
             noisy_images = scheduler.add_noise(images, noise, timesteps)
 
             # TODO: model prediction
-            model_pred = unet(noisy_images, timesteps, class_emb)
+            with torch.amp.autocast(
+                device_type="cuda", enabled=args.mixed_precision != "none"
+            ):
+                model_pred = unet(noisy_images, timesteps, class_emb)
 
-            if args.prediction_type == "epsilon":
-                target = noise
+                if args.prediction_type == "epsilon":
+                    target = noise
 
-            # TODO: calculate loss
-            loss = F.mse_loss(model_pred, target)
+                    # TODO: calculate loss
+                    loss = F.mse_loss(model_pred, target)
 
-            # record loss
-            loss_m.update(loss.item())
+                    # record loss
+                    loss_m.update(loss.item())
 
             # backward and step
-            loss.backward()
-            # TODO: grad clip
-            if args.grad_clip:
-                torch.nn.utils.clip_grad_norm_(unet.parameters(), args.grad_clip)
+            # todo : check gradient_accumulation_steps
+            if scaler:
+                scaler.scale(loss).backward()
 
-            # TODO: step your optimizer
-            optimizer.step()
+                # TODO: grad clip
+                if args.grad_clip:
+                    torch.nn.utils.clip_grad_norm_(unet.parameters(), args.grad_clip)
+
+                # TODO: step your optimizer
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                loss.backward()
+
+                # TODO: grad clip
+                if args.grad_clip:
+                    torch.nn.utils.clip_grad_norm_(unet.parameters(), args.grad_clip)
+
+                optimizer.step()
+
+            # learning rate scheduler step
             lr_scheduler.step()
 
             progress_bar.update(1)
@@ -517,10 +542,17 @@ def main():
                 logger.info(
                     f"Epoch {epoch+1}/{args.num_epochs}, Step {step}/{num_update_steps_per_epoch}, Loss {loss.item()} ({loss_m.avg})"
                 )
-                if not args.DEBUG:
-                    wandb_logger.log({"loss": loss_m.avg})
 
-        # validation
+                if is_primary(args) and wandb_logger:
+                    wandb_logger.log(
+                        {
+                            "loss": loss_m.avg,
+                        }
+                    )
+
+        # -------------------------------------------
+        # ----------------validation-----------------
+        # -------------------------------------------
         # send unet to evaluation mode
         unet.eval()
         generator = torch.Generator(device=device)
@@ -551,7 +583,7 @@ def main():
             grid_image.paste(image, (x, y))
 
         # Send to wandb
-        if is_primary(args) and not args.DEBUG:
+        if is_primary(args) and wandb_logger:
             wandb_logger.log({"gen_images": wandb.Image(grid_image)})
 
         # save checkpoint

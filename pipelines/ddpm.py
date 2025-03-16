@@ -25,13 +25,15 @@ class DDPMPipeline:
         Convert a numpy image or a batch of images to a PIL image.
         """
         if images.ndim == 3:
-            images = images[None, ...]
+            images = images[
+                None, ...
+            ]  # [height, width, channels] -> [batch_size, height, width, channels]
         images = (images * 255).round().astype("uint8")
         if images.shape[-1] == 1:
             # special case for grayscale (single channel) images
             pil_images = [
                 Image.fromarray(image.squeeze(), mode="L") for image in images
-            ]
+            ]  # [batch_size, height, width, channels] -> [batch_size, height, width]
         else:
             pil_images = [Image.fromarray(image) for image in images]
 
@@ -92,36 +94,52 @@ class DDPMPipeline:
             # TODO: get uncon class embeddings
             uncond_embeds = None
 
-        # : starts with random noise
-        # randn_tensor(image_shape, generator=generator, device=device)
-        image = randn_tensor(image_shape, generator=generator, device=device)
+        # TODO: starts with random noise
+        image = randn_tensor(
+            image_shape, generator=generator, device=device, dtype=torch.float32
+        )
+        print(
+            f"DEBUG: Initial noise stats - min: {image.min().item():.4f}, max: {image.max().item():.4f}, mean: {image.mean().item():.4f}"
+        )
 
-        # : set step values using set_timesteps of scheduler
+        # TODO: set step values using set_timesteps of scheduler
         self.scheduler.set_timesteps(num_inference_steps, device)
 
-        # : inverse diffusion process with for loop
-        for t in self.progress_bar(self.scheduler.timesteps):
+        # TODO: inverse diffusion process with for loop
+        debug_images = []
+        for i, t in enumerate(self.progress_bar(self.scheduler.timesteps)):
+            print(f"\nDEBUG: Step {t.item()+1}/{len(self.scheduler.timesteps)}")
 
             # NOTE: this is for CFG
-            if guidance_scale is not None or guidance_scale is not None:
+            if guidance_scale is not None and guidance_scale != 1.0:
                 # TODO: implement cfg
                 model_input = None
                 c = None
             else:
-                model_input = None
+                model_input = image
                 # NOTE: leave c as None if you are not using CFG
                 c = None
+            # print(
+            #     f"DEBUG: Initial noise stats - min: {model_input.min().item():.4f}, max: {model_input.max().item():.4f}, mean: {model_input.mean().item():.4f}"
+            # )
 
-            # : 1. predict noise model_output
-            model_output = self.unet.forward(image, t)
+            # TODO: 1. predict noise model_output
+            model_output = self.unet(model_input, t)  # what is c
+            print(
+                f"DEBUG: Model output shape: {model_output.shape}, min: {model_output.min().item():.4f}, max: {model_output.max().item():.4f}"
+            )
 
-            if guidance_scale is not None or guidance_scale is not None:
+            if guidance_scale is not None and guidance_scale != 1.0:
                 # TODO: implement cfg
                 uncond_model_output, cond_model_output = model_output.chunk(2)
                 model_output = None
 
-            # : 2. compute previous image: x_t -> x_t-1 using scheduler
-            image = self.scheduler.step(model_output, t, image, generator=generator)
+            # TODO: 2. compute previous image: x_t -> x_t-1 (less noisy) using scheduler
+            prev_image = self.scheduler.step(model_output, t, image, generator)
+            print(
+                f"DEBUG: After step - min: {prev_image.min().item():.4f}, max: {prev_image.max().item():.4f}, diff: {torch.abs(prev_image - image).mean().item():.6f}"
+            )
+            image = prev_image
 
         # NOTE: this is for latent DDPM
         # TODO: use VQVAE to get final image
@@ -131,8 +149,12 @@ class DDPMPipeline:
             # TODO: clamp your images values
             image = None
 
-        # : return final image, re-scale to [0, 1]
-        image = (image / 2 + 0.5).clamp(0, 1)
+        # TODO: return final image, re-scale to [0, 1]
+        image = (image + 1) / 2
+        image = torch.clamp(image, 0, 1)
+        print(
+            f"DEBUG: Final image stats - min: {image.min().item():.4f}, max: {image.max().item():.4f}, mean: {image.mean().item():.4f}"
+        )
 
         # convert to PIL images
         image = image.cpu().permute(0, 2, 3, 1).numpy()

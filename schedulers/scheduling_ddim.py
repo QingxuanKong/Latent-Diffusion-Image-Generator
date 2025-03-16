@@ -112,12 +112,12 @@ class DDIMScheduler(DDPMScheduler):
 
         # TODO: 4. compute variance: "sigma_t(η)" -> see formula (16)
         # σ_t = sqrt((1 − α_t−1)/(1 − α_t)) * sqrt(1 − α_t/α_t−1)
-        variance = self._get_variance(t) * eta**2
-        std_dev_t = torch.sqrt(variance)
+        variance = self._get_variance(t)
+        std_dev_t = eta * torch.sqrt(variance)
 
         # TODO: 5. compute "direction pointing to x_t" of formula (12) from https://arxiv.org/pdf/2010.02502.pdf
         pred_sample_direction = (
-            torch.sqrt(1 - alpha_prod_t_prev - variance) * pred_epsilon
+            torch.sqrt(1 - alpha_prod_t_prev - std_dev_t**2) * pred_epsilon
         )
 
         # TODO: 6. compute x_t without "random noise" of formula (12) from https://arxiv.org/pdf/2010.02502.pdf
