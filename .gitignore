@@ -4,3 +4,4 @@ imagenet100_128x128.tar.gz
 experiments/
 wandb/
 __pycache__/
+runpod_hw5.sh

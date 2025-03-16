@@ -8,7 +8,7 @@ num_classes: 100
 # training
 batch_size: 32
 num_workers: 4
-num_epochs: 10
+num_epochs: 5
 
 # optimizer
 learning_rate: 2e-4
@@ -17,7 +17,7 @@ weight_decay: 0.0001
 # wandb
 wandb_key: b6dff554fc854aea97af8dccb735c241a19a6615
 project_name: dl-hw5
-run_name: ddim-timestep(1000,100)
+run_name: ddim-timestep(1000,100)-epoch(5)
 
 # unet
 unet_in_size: 64
