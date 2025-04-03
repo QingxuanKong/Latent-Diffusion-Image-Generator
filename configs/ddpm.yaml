@@ -1,23 +1,32 @@
 seed: 42
 
 # dataset
-data_dir: /jet/home/ikong/hw5/data
+#data_dir: /jet/home/ikong/hw5/data
+data_dir: /jet/home/ygao8/11785-hw5/data
+val_data_dir: /jet/home/ygao8/11785-hw5/data/imagenet100_128x128/validation
+dataset: imagenet100
+subset: 1
 image_size: 64
 num_classes: 100
 
 # training
 batch_size: 32
 num_workers: 4
-num_epochs: 5
+num_epochs: 10
 
 # optimizer
 learning_rate: 2e-4
 weight_decay: 0.0001
 
 # wandb
-wandb_key: b6dff554fc854aea97af8dccb735c241a19a6615
-project_name: dl-hw5
-run_name: ddpm-timestep(1000,100)-epoch(10)
+# wandb_key: b6dff554fc854aea97af8dccb735c241a19a6615
+# project_name: dl-hw5
+# run_name: ddim-timestep(1000,100)-epoch(5)
+
+# Ivy wandb
+wandb_key: dbcb5b22a7512074ad91148adc5794d1955289ad
+project_name: IDL-hw5-Ivy
+run_name: ddpm-cfg-epoch10
 
 # unet
 unet_in_size: 64
@@ -30,12 +39,15 @@ unet_dropout: 0.0
 
 # diffusion
 num_train_timesteps: 1000
-num_inference_steps: 500
+num_inference_steps: 1000
 beta_start: 0.0002
 beta_end: 0.02
 beta_schedule: linear
 variance_type: fixed_small
 predictor_type: epsilon
 
-
+# cfg
+use_cfg: True
+cfg_guidance_scale: 3.0
+cond_drop_rate: 0.1
 

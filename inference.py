@@ -25,6 +25,9 @@ logger = get_logger(__name__)
 
 
 def main():
+    # parse arguments
+    args = parse_args()
+
     # start tracker
     if is_primary(args) and not args.DEBUG:
         wandb.login(key=args.wandb_key)
@@ -32,8 +35,8 @@ def main():
             project=args.project_name, name=args.run_name, config=vars(args)
         )
 
-    # parse arguments
-    args = parse_args()
+    # device
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # seed everything
     seed_everything(args.seed)
@@ -46,9 +49,6 @@ def main():
         datefmt="%m/%d/%Y %H:%M:%S",
         level=logging.INFO,
     )
-
-    # device
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # setup model
     logger.info("Creating model")
@@ -92,7 +92,8 @@ def main():
     class_embedder = None
     if args.use_cfg:
         # TODO: class embeder
-        class_embedder = ClassEmbedder(None)
+        class_embedder = ClassEmbedder(embed_dim=args.unet_ch, n_classes=args.num_classes,cond_drop_rate=0.0)
+        #class_embedder = ClassEmbedder(None)
 
     # send to device
     unet = unet.to(device)
@@ -147,18 +148,28 @@ def main():
     all_images = []
     if args.use_cfg:
         # generate 50 images per class
-        for i in tqdm(range(args.num_classes)):
+        total_images = args.num_classes * 50
+        #for i in tqdm(range(args.num_classes)):
+        for i in tqdm(range(1)):
             logger.info(f"Generating 50 images for class {i}")
             batch_size = 50
             classes = torch.full((batch_size,), i, dtype=torch.long, device=device)
-            gen_images = None
+            gen_images = pipeline(
+                batch_size=batch_size,
+                num_inference_steps=args.num_inference_steps,
+                classes=classes,
+                guidance_scale=args.cfg_guidance_scale,
+                generator=generator,
+                device=device,
+            )
             all_images.append(gen_images)
     else:
         # generate 5000 images
         total_images = 5000
         remaining = total_images
+        batch_size = args.batch_size
 
-        while remaining > 0:
+        while remaining > (5000-32): #0
             curr_batch_size = min(batch_size, remaining)
             gen_images = pipeline(
                 batch_size=curr_batch_size,
@@ -167,17 +178,28 @@ def main():
                 device=device,
             )
             # why need to rescale
-            all_images.append(gen_images)
+            all_images.extend(gen_images)
             remaining -= curr_batch_size
 
-    all_images = torch.cat(all_images, dim=0)
+    from torchvision import transforms
+
+    to_tensor = transforms.ToTensor()
+    # flatten list if necessary
+    if isinstance(all_images[0], list):  # means use_cfg == True
+        all_images = [img for batch in all_images for img in batch]
+
+    # now convert to tensor
+    all_images = [to_tensor(img) for img in all_images]
+    all_images = torch.stack(all_images, dim=0)
+
     # sample from all_images
-    sample_images = None
+    sample_images = all_images[:4] #Display the first 4 images
     grid_image = Image.new("RGB", (4 * args.image_size, 1 * args.image_size))
     for i, image in enumerate(sample_images):
         x = (i % 4) * args.image_size
         y = 0
-        grid_image.paste(image, (x, y))
+        pil_img = transforms.ToPILImage()(image.cpu()) 
+        grid_image.paste(pil_img, (x, y))
 
     if is_primary(args) and not args.DEBUG:
         wandb_logger.log({"infer_images": wandb.Image(grid_image)})
@@ -232,11 +254,41 @@ def main():
     real_images = torch.cat(real_images, dim=0)[:5000]  # should i load all then sample?
 
     # TODO: using torchmetrics for evaluation, check the documents of torchmetrics
-    import torchmetrics
+    from torchmetrics.image.fid import FrechetInceptionDistance
+    from torchmetrics.image.inception import InceptionScore
+    from torch.utils.data import DataLoader, TensorDataset
 
-    from torchmetrics.image.fid import FrechetInceptionDistance, InceptionScore
+    # Set up metrics
+    fid = FrechetInceptionDistance(feature=2048, normalize=True).to(device)
+    is_score = InceptionScore(normalize=True).to(device)
 
-    # TODO: compute FID and IS
+    # Ensure image format is uint8 in [0, 255] and move to device
+    if all_images.dtype != torch.uint8:
+        all_images = (all_images * 255).clamp(0, 255).to(torch.uint8)
+    if real_images.dtype != torch.uint8:
+        real_images = (real_images * 255).clamp(0, 255).to(torch.uint8)
+
+    # Dataloaders (batching avoids OOM)
+    batch_size = 50
+    real_loader = DataLoader(real_images, batch_size=batch_size)
+    fake_loader = DataLoader(all_images, batch_size=batch_size)
+
+    # Update FID: real
+    for batch in tqdm(real_loader, desc="Updating FID with real images"):
+        fid.update(batch.to(device), real=True)
+
+    # Update FID + IS: fake
+    for batch in tqdm(fake_loader, desc="Updating FID and IS with generated images"):
+        batch = batch.to(device)
+        fid.update(batch, real=False)
+        is_score.update(batch)
+
+    # Compute results
+    fid_value = fid.compute()
+    is_mean, is_std = is_score.compute()
+
+    logger.info(f"FID: {fid_value.item():.2f}")
+    logger.info(f"Inception Score: {is_mean.item():.2f} ± {is_std.item():.2f}")
 
 
 if __name__ == "__main__":

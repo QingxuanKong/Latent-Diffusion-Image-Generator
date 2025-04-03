@@ -10,6 +10,8 @@ from logging import getLogger as get_logger
 from tqdm import tqdm
 from PIL import Image
 import torch.nn.functional as F
+from torch.cuda.amp import GradScaler
+from torch.cuda.amp import autocast
 
 from torchvision import datasets, transforms
 from torchvision.utils import make_grid
@@ -150,6 +152,9 @@ def parse_args():
     parser.add_argument(
         "--cfg_guidance_scale", type=float, default=2.0, help="cfg for inference"
     )
+    parser.add_argument(
+        "--cond_drop_rate", type=float, default=2.0, help="use cfg for conditional (latent) ddpm"
+    )
 
     # ddim sampler for inference
     parser.add_argument(
@@ -163,6 +168,22 @@ def parse_args():
     parser.add_argument(
         "--ckpt", type=str, default=None, help="checkpoint path for inference"
     )
+
+    # distributed training settings (used in DDP or multi-GPU)
+    parser.add_argument('--distributed', action='store_true',
+                        help='Use DistributedDataParallel')
+    parser.add_argument('--world_size', type=int, default=1,
+                        help='Number of total processes (GPUs) for distributed training')
+    parser.add_argument('--rank', type=int, default=0,
+                        help='Rank of the current process')
+    parser.add_argument('--local_rank', type=int, default=0,
+                        help='Local rank of the process (used by torch.distributed.launch)')
+
+    parser.add_argument("--dataset", type=str, default="imagenet100", choices=["imagenet100", "cifar10"])
+    parser.add_argument('--val_data_dir', type=str, default='data/imagenet100_128x128/validation',
+                        help='Path to validation data folder (for ImageFolder-based datasets)')
+    parser.add_argument('--subset', type=float, default=1.0,
+                        help='Fraction of validation set to use (e.g., 0.1 for 10%)')
 
     # first parse of command-line args to check for config file
     args = parser.parse_args()
@@ -330,7 +351,11 @@ def main():
     class_embedder = None
     if args.use_cfg:
         # TODO:
-        class_embedder = ClassEmbedder(None)
+        class_embedder = ClassEmbedder(
+        embed_dim=args.unet_ch,
+        n_classes=args.num_classes,
+        cond_drop_rate=args.cond_drop_rate
+    )
 
     # send to device
     unet = unet.to(device)
@@ -353,8 +378,8 @@ def main():
     )  # todo: change tmax, eta_min
 
     # todo: check this
-    scaler = torch.amp.GradScaler(enabled=args.mixed_precision != "none")
-
+    #scaler = torch.amp.GradScaler(enabled=args.mixed_precision != "none")
+    scaler = GradScaler(enabled=args.mixed_precision != "none")
     # max train steps
     num_update_steps_per_epoch = len(train_loader)
     args.max_train_steps = args.num_epochs * num_update_steps_per_epoch
@@ -412,9 +437,8 @@ def main():
     # -------------------------------------------
     # start tracker
     if is_primary(args) and not args.DEBUG:
-        wandb.login(key=args.wandb_key)
         wandb_logger = wandb.init(
-            project=args.project_name, name=args.run_name, config=vars(args)
+            project=args.project_name, name=args.run_name, config=vars(args), settings=wandb.Settings(api_key=args.wandb_key),
         )
 
     # Start training
@@ -480,7 +504,7 @@ def main():
             # NOTE: this is for CFG
             if class_embedder is not None:
                 # TODO: use class embedder to get class embeddings
-                class_emb = None
+                class_emb = class_embedder(labels)
             else:
                 # NOTE: if not cfg, set class_emb to None
                 class_emb = None
@@ -497,8 +521,11 @@ def main():
             noisy_images = scheduler.add_noise(images, noise, timesteps)
 
             # TODO: model prediction
-            with torch.amp.autocast(
-                device_type="cuda", enabled=args.mixed_precision != "none"
+            #with torch.amp.autocast(
+            #device_type="cuda", enabled=args.mixed_precision != "none"
+            #):
+            with autocast(
+                enabled=args.mixed_precision != "none"
             ):
                 model_pred = unet(noisy_images, timesteps, class_emb)
 
@@ -561,9 +588,16 @@ def main():
         # NOTE: this is for CFG
         if args.use_cfg:
             # random sample 4 classes
-            classes = torch.randint(0, args.num_classes, (4,), device=device)
+            classes = torch.randint(0, args.num_classes, (args.batch_size,), device=device)
             # TODO: fill pipeline
-            gen_images = pipeline(None)
+            gen_images = pipeline(
+                batch_size=args.batch_size,
+                num_inference_steps=args.num_inference_steps,
+                classes=classes,
+                guidance_scale=args.cfg_guidance_scale,
+                generator=generator,
+                device=device,
+            )
         else:
             # TODO: fill pipeline
             # ERROR
@@ -577,7 +611,7 @@ def main():
         # create a blank canvas for the grid
         grid_image = Image.new("RGB", (4 * args.image_size, 1 * args.image_size))
         # paste images into the grid
-        for i, image in enumerate(gen_images):
+        for i, image in enumerate(gen_images[:4]):
             x = (i % 4) * args.image_size
             y = 0
             grid_image.paste(image, (x, y))
@@ -600,4 +634,5 @@ def main():
 
 
 if __name__ == "__main__":
+    #args = parse_args()
     main()

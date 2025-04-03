@@ -17,7 +17,7 @@ weight_decay: 0.0001
 # wandb
 wandb_key: b6dff554fc854aea97af8dccb735c241a19a6615
 project_name: dl-hw5
-run_name: ddim-timestep(1000,100)-epoch(5)
+run_name: ddim-timestep
 
 # unet
 unet_in_size: 64
