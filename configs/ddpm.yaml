@@ -16,7 +16,7 @@ num_epochs: 10
 
 # optimizer
 learning_rate: 2e-4
-weight_decay: 0.0001
+weight_decay: 1e-4
 
 # wandb
 # wandb_key: b6dff554fc854aea97af8dccb735c241a19a6615

@@ -132,8 +132,9 @@ class DDPMPipeline:
             if guidance_scale is not None and guidance_scale != 1.0:
                 # TODO: implement cfg
                 uncond_model_output, cond_model_output = model_output.chunk(2)
-                model_output = uncond_model_output + guidance_scale * (cond_model_output - uncond_model_output)
-
+                model_output = uncond_model_output + guidance_scale * (
+                    cond_model_output - uncond_model_output
+                )
 
             # TODO: 2. compute previous image: x_t -> x_t-1 (less noisy) using scheduler
             prev_image = self.scheduler.step(model_output, t, image, generator)
@@ -146,9 +147,9 @@ class DDPMPipeline:
         # TODO: use VQVAE to get final image
         if self.vae is not None:
             # NOTE: remember to rescale your images
-            image = self.vae.decode(image / 0.1845)
-            # TODO: clamp your images values
-            image = torch.clamp(image, -1.0, 1.0)
+            image = 1 / 0.18215 * image
+            # Decode the image
+            image = self.vae.decode(image).sample
 
         # TODO: return final image, re-scale to [0, 1]
         image = (image + 1) / 2

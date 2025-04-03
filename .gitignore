@@ -6,3 +6,5 @@ wandb/
 __pycache__/
 runpod_hw5.sh
 train_debug.ipynb
+kl-f4.zip
+pretrained/
