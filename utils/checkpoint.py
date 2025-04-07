@@ -1,5 +1,6 @@
 import torch
 import os
+import wandb
 
 def load_checkpoint(unet, scheduler, vae=None, class_embedder=None, optimizer=None, checkpoint_path='checkpoints/checkpoint.pth'):
     
@@ -53,6 +54,16 @@ def save_checkpoint(unet, scheduler, vae=None, class_embedder=None, optimizer=No
     # Manage checkpoint history
     manage_checkpoints(save_dir, keep_last_n=10)
 
+    # Save the last_model，and upload to WandB
+    last_model_path = os.path.join(save_dir, "last_model.pth")
+    torch.save(checkpoint, last_model_path)
+    print(f"Last model saved at {last_model_path}")
+    
+    if wandb.run:
+        artifact = wandb.Artifact("last_model", type="model")
+        artifact.add_file(last_model_path)
+        wandb.log_artifact(artifact, aliases=["latest"])
+        print("Uploaded last model to WandB with alias 'latest'")
 
 def manage_checkpoints(save_dir, keep_last_n=10):
     # List all checkpoint files in the save directory

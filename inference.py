@@ -17,7 +17,7 @@ from torchvision.utils import make_grid
 from models import UNet, VAE, ClassEmbedder
 from schedulers import DDPMScheduler, DDIMScheduler
 from pipelines import DDPMPipeline
-from utils import seed_everything, load_checkpoint, is_primary
+from utils import seed_everything, load_checkpoint, is_primary, evaluate_fid_is, build_val_loader
 
 from train import parse_args
 
@@ -141,16 +141,16 @@ def main():
         unet=unet, scheduler=scheduler, vae=vae, class_embedder=class_embedder
     )
 
-    logger.info("***** Running Infrence *****")
-
+    logger.info("***** Running Inference *****")
+    
     # TODO: we run inference to generation 5000 images
     # TODO: with cfg, we generate 50 images per class
     all_images = []
     if args.use_cfg:
         # generate 50 images per class
         total_images = args.num_classes * 50
-        #for i in tqdm(range(args.num_classes)):
-        for i in tqdm(range(1)):
+        for i in tqdm(range(args.num_classes)):
+        #for i in tqdm(range(1)):
             logger.info(f"Generating 50 images for class {i}")
             batch_size = 50
             classes = torch.full((batch_size,), i, dtype=torch.long, device=device)
@@ -169,7 +169,7 @@ def main():
         remaining = total_images
         batch_size = args.batch_size
 
-        while remaining > (5000-32): #0
+        while remaining > 0: 
             curr_batch_size = min(batch_size, remaining)
             gen_images = pipeline(
                 batch_size=curr_batch_size,
@@ -191,7 +191,7 @@ def main():
     # now convert to tensor
     all_images = [to_tensor(img) for img in all_images]
     all_images = torch.stack(all_images, dim=0)
-
+    
     # sample from all_images
     sample_images = all_images[:4] #Display the first 4 images
     grid_image = Image.new("RGB", (4 * args.image_size, 1 * args.image_size))
@@ -204,6 +204,7 @@ def main():
     if is_primary(args) and not args.DEBUG:
         wandb_logger.log({"infer_images": wandb.Image(grid_image)})
 
+    '''
     # TODO: load validation images as reference batch
     transform = transforms.Compose(
         [
@@ -242,7 +243,7 @@ def main():
         sampler=sampler,
         drop_last=False,
     )
-
+    
     real_images = []
     for batch, _ in tqdm(val_loader, desc="Loading validation images"):
         real_images.append(batch)
@@ -266,7 +267,9 @@ def main():
     if all_images.dtype != torch.uint8:
         all_images = (all_images * 255).clamp(0, 255).to(torch.uint8)
     if real_images.dtype != torch.uint8:
-        real_images = (real_images * 255).clamp(0, 255).to(torch.uint8)
+        real_images = (real_images * 0.5 + 0.5) * 255
+        #real_images = (real_images * 255)
+        real_images = real_images.clamp(0, 255).to(torch.uint8)
 
     # Dataloaders (batching avoids OOM)
     batch_size = 50
@@ -289,7 +292,28 @@ def main():
 
     logger.info(f"FID: {fid_value.item():.2f}")
     logger.info(f"Inception Score: {is_mean.item():.2f} ± {is_std.item():.2f}")
+    '''
+    val_loader = build_val_loader(
+        dataset_name=args.dataset,
+        val_data_dir=args.val_data_dir,
+        data_dir=args.data_dir,
+        image_size=args.image_size,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
+        subset_ratio=args.subset,
+        distributed=args.distributed,
+        world_size=args.world_size,
+        rank=args.rank
+    )
 
+    fid_val, is_mean, is_std = evaluate_fid_is(
+        generated_images=all_images,         # [N, C, H, W] float in [-1, 1]
+        val_loader=val_loader,               # already built earlier
+        device=device,
+        total_images=len(all_images),        # usually 5000
+        batch_size=50,
+        logger=logger                        # so it prints via logger
+    )
 
 if __name__ == "__main__":
     main()

@@ -24,8 +24,12 @@ from utils import (
     AverageMeter,
     str2bool,
     save_checkpoint,
+    evaluate_fid_is,
+    build_val_loader,
 )
 
+from torch.cuda.amp import GradScaler
+from torch.cuda.amp import autocast
 
 logger = get_logger(__name__)
 
@@ -170,6 +174,12 @@ def parse_args():
         "--ckpt", type=str, default=None, help="checkpoint path for inference"
     )
 
+    # evaluation for inference
+    parser.add_argument('--eval_during_train', type=str2bool, default=False,
+                    help='Whether to run evaluation during training (e.g., on 500 images)')
+    parser.add_argument('--eval_every_n_epoch', type=int, default=5,
+                    help='Evaluate every n epochs during training')
+
     # distributed training settings (used in DDP or multi-GPU)
     parser.add_argument(
         "--distributed", action="store_true", help="Use DistributedDataParallel"
@@ -226,6 +236,10 @@ def main():
     # parse arguments
     args = parse_args()
 
+    print("[DEBUG] args =")
+    for k, v in vars(args).items():
+        print(f"  {k}: {v} (type: {type(v)})")
+
     # seed everything
     seed_everything(args.seed)
 
@@ -254,6 +268,7 @@ def main():
     logger.info("Creating dataset")
     # TODO: use transform to normalize your images to [-1, 1]
     # TODO: you can also use horizontal flip
+    from torchvision import transforms
     transform = transforms.Compose(
         [
             transforms.Resize((args.image_size, args.image_size)),
@@ -399,8 +414,9 @@ def main():
     )  # todo: change tmax, eta_min
 
     # todo: check this
-    scaler = torch.amp.GradScaler(enabled=args.mixed_precision in ["fp16", "bf16"])
-
+    #scaler = torch.amp.GradScaler(enabled=args.mixed_precision in ["fp16", "bf16"])
+    scaler = GradScaler(enabled=args.mixed_precision != "none")
+    
     # max train steps
     num_update_steps_per_epoch = len(train_loader)
     args.max_train_steps = args.num_epochs * num_update_steps_per_epoch
@@ -521,7 +537,7 @@ def main():
                 with torch.no_grad():
                     with torch.amp.autocast(
                         device_type="cuda",
-                        enabled=args.mixed_precision in ["fp16", "bf16"],
+                        enabled=args.mixed_precision != "none",
                     ):
                         images = vae.encode(images).sample()
                 # NOTE: do not change this line, this is to ensure the latent has unit std
@@ -551,7 +567,7 @@ def main():
 
             # TODO: model prediction
             with torch.amp.autocast(
-                device_type="cuda", enabled=args.mixed_precision in ["fp16", "bf16"]
+                device_type="cuda", enabled=args.mixed_precision != "none",
             ):
                 model_pred = unet(noisy_images, timesteps, class_emb)
 
@@ -648,7 +664,7 @@ def main():
         if is_primary(args) and wandb_logger:
             wandb_logger.log({"gen_images": wandb.Image(grid_image)})
 
-        # save checkpoint
+        #save checkpoint
         if is_primary(args):
             save_checkpoint(
                 unet_wo_ddp,
@@ -659,6 +675,106 @@ def main():
                 epoch,
                 save_dir=save_dir,
             )
+
+        # -------------------------------------------
+        # -----------FID / IS Evaluation(Optional)-----------
+        # -------------------------------------------
+        if args.eval_during_train and (epoch + 1) % args.eval_every_n_epoch == 0 and is_primary(args):  # Execute evaluation every 10 epochs
+        #if (epoch + 1) % args.eval_every_n_epoch == 0 and is_primary(args):  # Execute evaluation every 10 epochs
+            logger.info(f"[Epoch {epoch+1}] Running FID/IS Evaluation...")
+
+            # Generate 500 images（unconditional or conditional）
+            all_images = []
+            num_samples = 500
+            bs = 50
+            steps = num_samples // bs
+
+            for _ in range(steps):
+                if args.use_cfg:
+                    classes = torch.randint(0, args.num_classes, (bs,), device=device)
+                    batch = pipeline(
+                        batch_size=bs,
+                        num_inference_steps=args.num_inference_steps,
+                        classes=classes,
+                        guidance_scale=args.cfg_guidance_scale,
+                        generator=generator,
+                        device=device,
+                    )
+                else:
+                    batch = pipeline(
+                        batch_size=bs,
+                        num_inference_steps=args.num_inference_steps,
+                        generator=generator,
+                        device=device,
+                    )
+                all_images.extend(batch)
+
+            # convert to tensor
+            from torchvision import transforms
+            to_tensor = transforms.ToTensor()
+            all_images = [to_tensor(img) for img in all_images]
+            all_images = torch.stack(all_images)
+
+            val_loader = build_val_loader(
+                dataset_name=args.dataset,
+                val_data_dir=args.val_data_dir,
+                data_dir=args.data_dir,
+                image_size=args.image_size,
+                batch_size=args.batch_size,
+                num_workers=args.num_workers,
+                subset_ratio=args.subset,
+                distributed=args.distributed,
+                world_size=args.world_size,
+                rank=args.rank
+            )
+
+            # Call evaluation function
+            fid_val, is_mean, is_std = evaluate_fid_is(
+                generated_images=all_images,
+                val_loader=val_loader,
+                device=device,
+                total_images=num_samples,
+                logger=logger
+            )
+
+            # log to wandb
+            if wandb.run:
+                wandb.log({
+                    "FID_train_eval": fid_val,
+                    "IS_train_eval": is_mean,
+                    "epoch": epoch + 1
+                })
+
+            # Save the best fid/is model to wandb
+            # Initialization fid and is
+            if not hasattr(args, "best_fid") or not hasattr(args, "best_is"):
+                args.best_fid = float("inf")
+                args.best_is = float("-inf")
+
+            # compare and save best FID model
+            if fid_val < args.best_fid:
+                args.best_fid = fid_val
+                fid_path = os.path.join(save_dir, "best_fid_model.pth")
+                torch.save(unet_wo_ddp.state_dict(), fid_path)
+                logger.info(f"New best FID model saved at epoch {epoch+1}, FID={fid_val:.4f}")
+
+                if wandb.run:
+                    artifact = wandb.Artifact("best_fid_model", type="model")
+                    artifact.add_file(fid_path)
+                    wandb.log_artifact(artifact, aliases=["best_fid"])
+
+            # compare and save best IS model
+            if is_mean > args.best_is:
+                args.best_is = is_mean
+                is_path = os.path.join(save_dir, "best_is_model.pth")
+                torch.save(unet_wo_ddp.state_dict(), is_path)
+                logger.info(f"New best IS model saved at epoch {epoch+1}, IS={is_mean:.4f}")
+
+                if wandb.run:
+                    artifact = wandb.Artifact("best_is_model", type="model")
+                    artifact.add_file(is_path)
+                    wandb.log_artifact(artifact, aliases=["best_is"])
+
 
 
 if __name__ == "__main__":
