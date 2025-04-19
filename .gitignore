@@ -8,4 +8,3 @@ runpod_hw5.sh
 train_debug.ipynb
 kl-f4.zip
 pretrained/
-configs/ddpm-bryan.yaml
