@@ -4,7 +4,7 @@ seed: 42
 dataset: imagenet100
 data_dir: /root/hw5/data
 val_data_dir: /root/hw5/data/imagenet100_128x128/validation
-subset: 0.01
+subset: 1.0
 image_size: 64
 num_classes: 100
 
@@ -62,10 +62,15 @@ cond_drop_rate: 0.1
 use_ddim: False
 
 # checkpoint
-keep_last_n: 1
+keep_last_n: 1 # including the last one
+keep_last_model: False
+keep_best_model: False
 
 #evaluation during training
 eval_during_train: True
 eval_every_n_epoch: 1 # it takes 10 min to generate 500 images for evaluation each time
-eval_samples: 32 # 500
-eval_batch_size: 32
+eval_samples: 500 # 500
+eval_classes: 50 # 50
+
+# inference
+inference_samples: 5000

@@ -157,12 +157,12 @@ def main():
     # TODO: with cfg, we generate 50 images per class
     all_images = []
     if args.use_cfg:
-        # generate 50 images per class
-        total_images = args.num_classes * 50
+        # generate images per class
+        total_images = args.inference_samples
+        batch_size = total_images // args.num_classes
         for i in tqdm(range(args.num_classes)):
             # for i in tqdm(range(1)):
-            logger.info(f"Generating 50 images for class {i}")
-            batch_size = 50
+            logger.info(f"Generating {batch_size} images for class {i}")
             classes = torch.full((batch_size,), i, dtype=torch.long, device=device)
             gen_images = pipeline(
                 batch_size=batch_size,
@@ -175,7 +175,7 @@ def main():
             all_images.append(gen_images)
     else:
         # generate 5000 images
-        total_images = 5000
+        total_images = args.inference_samples
         remaining = total_images
         batch_size = args.batch_size
 

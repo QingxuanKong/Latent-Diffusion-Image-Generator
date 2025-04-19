@@ -192,17 +192,38 @@ def parse_args():
     parser.add_argument(
         "--ckpt", type=str, default=None, help="checkpoint path for inference"
     )
-    parser.add_argument("--keep_last_n", type=int, default=10, help="number of checkpoints kept")
+    parser.add_argument(
+        "--keep_last_n", type=int, default=10, help="number of checkpoints kept"
+    )
+    parser.add_argument(
+        "--keep_last_model", type=str2bool, default=True, help="keep best model"
+    )
+    parser.add_argument(
+        "--keep_best_model", type=str2bool, default=True, help="keep best model"
+    )
 
     # evaluation for inference
-    parser.add_argument('--eval_during_train', type=str2bool, default=False,
-                    help='Whether to run evaluation during training (e.g., on 500 images)')
-    parser.add_argument('--eval_every_n_epoch', type=int, default=5,
-                    help='Evaluate every n epochs during training')
-    parser.add_argument('--eval_samples', type=int, default=500,
-                    help='the number of samples to generate for evaluation')
-    parser.add_argument('--eval_batch_size', type=int, default=50,
-                    help='batch size for evaluation')
+    parser.add_argument(
+        "--eval_during_train",
+        type=str2bool,
+        default=False,
+        help="Whether to run evaluation during training (e.g., on 500 images)",
+    )
+    parser.add_argument(
+        "--eval_every_n_epoch",
+        type=int,
+        default=5,
+        help="Evaluate every n epochs during training",
+    )
+    parser.add_argument(
+        "--eval_samples",
+        type=int,
+        default=500,
+        help="the number of samples to generate for evaluation",
+    )
+    parser.add_argument(
+        "--eval_batch_size", type=int, default=50, help="batch size for evaluation"
+    )
 
     # distributed training settings (used in DDP or multi-GPU)
     parser.add_argument(
@@ -277,6 +298,7 @@ def main():
     # TODO: use transform to normalize your images to [-1, 1]
     # TODO: you can also use horizontal flip
     from torchvision import transforms
+
     transform = transforms.Compose(
         [
             transforms.Resize((args.image_size, args.image_size)),
@@ -425,7 +447,7 @@ def main():
 
     # todo: check this
     scaler = torch.cuda.amp.GradScaler(enabled=args.mixed_precision in ["fp16", "bf16"])
-    
+
     # max train steps
     num_update_steps_per_epoch = len(train_loader)
     args.max_train_steps = args.num_epochs * num_update_steps_per_epoch
@@ -534,8 +556,8 @@ def main():
         # TODO: finish this
         for step, (images, labels) in enumerate(train_loader):
 
-            # initialize the save model flags to False 
-            save_best_fid, save_best_is = False, False
+            # initialize the save model flags to False
+            if_best_fid, if_best_is = False, False
 
             # record batch size
             batch_size = images.size(0)
@@ -676,26 +698,33 @@ def main():
         if is_primary(args) and wandb_logger:
             wandb_logger.log({"gen_images": wandb.Image(grid_image)})
 
-
         # -------------------------------------------
         # -----------FID / IS Evaluation(Optional)-----------
         # -------------------------------------------
-        if args.eval_during_train and (epoch + 1) % args.eval_every_n_epoch == 0 and is_primary(args):  # Execute evaluation every 10 epochs
-        #if (epoch + 1) % args.eval_every_n_epoch == 0 and is_primary(args):  # Execute evaluation every 10 epochs
+        if (
+            args.eval_during_train
+            and (epoch + 1) % args.eval_every_n_epoch == 0
+            and is_primary(args)
+        ):  # Execute evaluation every 10 epochs
+            # if (epoch + 1) % args.eval_every_n_epoch == 0 and is_primary(args):  # Execute evaluation every 10 epochs
             logger.info(f"[Epoch {epoch+1}] Running FID/IS Evaluation...")
 
             # Generate 500 images（unconditional or conditional）
             all_images = []
-            num_samples = args.eval_samples
-            bs = args.eval_batch_size
-            steps = num_samples // bs
-            logger.info(f"Generating {num_samples} images with batch size {bs} in {steps} steps...")
+            eval_samples = args.eval_samples
+            eval_classes = args.eval_classes
+            steps = eval_samples // eval_classes
+            logger.info(
+                f"Generating {eval_samples} images for {eval_classes} classes in {steps} steps..."
+            )
 
             for _ in range(steps):
                 if args.use_cfg:
-                    classes = torch.randint(0, args.num_classes, (bs,), device=device)
+                    classes = torch.randint(
+                        0, args.num_classes, (eval_classes,), device=device
+                    )
                     batch = pipeline(
-                        batch_size=bs,
+                        batch_size=eval_classes,
                         num_inference_steps=args.num_inference_steps,
                         classes=classes,
                         guidance_scale=args.cfg_guidance_scale,
@@ -704,7 +733,7 @@ def main():
                     )
                 else:
                     batch = pipeline(
-                        batch_size=bs,
+                        batch_size=eval_classes,
                         num_inference_steps=args.num_inference_steps,
                         generator=generator,
                         device=device,
@@ -713,6 +742,7 @@ def main():
 
             # convert to tensor
             from torchvision import transforms
+
             to_tensor = transforms.ToTensor()
             all_images = [to_tensor(img) for img in all_images]
             all_images = torch.stack(all_images)
@@ -727,7 +757,7 @@ def main():
                 subset_ratio=args.subset,
                 distributed=args.distributed,
                 world_size=args.world_size,
-                rank=args.rank
+                rank=args.rank,
             )
 
             # Call evaluation function
@@ -735,8 +765,8 @@ def main():
                 generated_images=all_images,
                 val_loader=val_loader,
                 device=device,
-                total_images=num_samples,
-                logger=logger
+                total_images=eval_samples,
+                logger=logger,
             )
 
             # Save the best fid/is model to wandb
@@ -748,13 +778,13 @@ def main():
             # compare and save best FID model
             if fid_val < args.best_fid:
                 args.best_fid = fid_val
-                save_best_fid = True
+                if_best_fid = True
 
             # compare and save best IS model
             if is_mean > args.best_is:
                 args.best_is = is_mean
-                save_best_is = True
-            
+                if_best_is = True
+
             # log to console
             logger.info(
                 f"Epoch {epoch+1}/{args.num_epochs}, FID: {fid_val}, IS: {is_mean} ± {is_std}, Best FID: {args.best_fid}, Best IS: {args.best_is}"
@@ -762,14 +792,16 @@ def main():
 
             # log to wandb
             if is_primary(args) and wandb_logger:
-                wandb_logger.log({
-                    "fid": fid_val,
-                    "is": is_mean,
-                    'best_fid': args.best_fid,
-                    'best_is': args.best_is
-                })
+                wandb_logger.log(
+                    {
+                        "fid": fid_val,
+                        "is": is_mean,
+                        "best_fid": args.best_fid,
+                        "best_is": args.best_is,
+                    }
+                )
 
-        #save checkpoint
+        # save checkpoint
         if is_primary(args):
             save_checkpoint(
                 unet_wo_ddp,
@@ -780,8 +812,10 @@ def main():
                 epoch,
                 save_dir=save_dir,
                 keep_last_n=args.keep_last_n,
-                save_best_fid=save_best_fid,
-                save_best_is=save_best_is
+                keep_last_model=args.keep_last_model,
+                keep_best_model=args.keep_best_model,
+                if_best_fid=if_best_fid,
+                if_best_is=if_best_is,
             )
 
 
