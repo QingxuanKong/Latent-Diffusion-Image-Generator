@@ -68,7 +68,7 @@ keep_best_model: False
 
 #evaluation during training
 eval_during_train: True
-eval_every_n_epoch: 1 # it takes 10 min to generate 500 images for evaluation each time
+eval_every_n_epoch: 5 # it takes 10 min to generate 500 images for evaluation each time
 eval_samples: 500 # 500
 eval_classes: 50 # 50
 
