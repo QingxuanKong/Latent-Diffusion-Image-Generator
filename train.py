@@ -47,33 +47,43 @@ def parse_args():
 
     # data
     parser.add_argument(
+        "--dataset", type=str, default="imagenet100", choices=["imagenet100", "cifar10"]
+    )
+    parser.add_argument(
         "--data_dir",
         type=str,
         default="./data/imagenet100_128x128/train",
         help="data folder",
     )
+    parser.add_argument(
+        "--val_data_dir",
+        type=str,
+        default="data/imagenet100_128x128/validation",
+        help="Path to validation data folder (for ImageFolder-based datasets)",
+    )
+    parser.add_argument(
+        "--subset",
+        type=float,
+        default=1.0,
+        help="Fraction of validation set to use (e.g., 0.1 for 10%)",
+    )
     parser.add_argument("--image_size", type=int, default=128, help="image size")
-    parser.add_argument("--batch_size", type=int, default=4, help="per gpu batch size")
-    parser.add_argument("--num_workers", type=int, default=8, help="batch size")
     parser.add_argument(
         "--num_classes", type=int, default=100, help="number of classes in dataset"
     )
 
     # training
-    parser.add_argument("--DEBUG", type=str, default=None, help="debug_mode")
-    parser.add_argument("--wandb_key", type=str, default=None, help="wandb_key")
-    parser.add_argument("--project_name", type=str, default=None, help="project_name")
-    parser.add_argument("--run_name", type=str, default=None, help="run_name")
-    parser.add_argument(
-        "--output_dir", type=str, default="experiments", help="output folder"
-    )
+    parser.add_argument("--seed", type=int, default=42, help="random seed")
+    parser.add_argument("--batch_size", type=int, default=4, help="per gpu batch size")
+    parser.add_argument("--num_workers", type=int, default=8, help="batch size")
     parser.add_argument("--num_epochs", type=int, default=10)
+
+    # optimizer
     parser.add_argument(
         "--learning_rate", type=float, default=1e-4, help="learning rate"
     )
     parser.add_argument("--weight_decay", type=float, default=1e-4, help="weight decay")
     parser.add_argument("--grad_clip", type=float, default=1.0, help="gradient clip")
-    parser.add_argument("--seed", type=int, default=42, help="random seed")
     parser.add_argument(
         "--mixed_precision",
         type=str,
@@ -81,6 +91,42 @@ def parse_args():
         choices=["fp16", "bf16", "fp32", "none"],
         help="mixed precision",
     )
+
+    # log
+    parser.add_argument("--DEBUG", type=str, default=None, help="debug_mode")
+    parser.add_argument("--wandb_key", type=str, default=None, help="wandb_key")
+    parser.add_argument("--project_name", type=str, default=None, help="project_name")
+    parser.add_argument("--run_name", type=str, default=None, help="run_name")
+    parser.add_argument(
+        "--output_dir", type=str, default="experiments", help="output folder"
+    )
+
+    # unet
+    parser.add_argument(
+        "--unet_in_size", type=int, default=128, help="unet input image size"
+    )
+    parser.add_argument(
+        "--unet_in_ch", type=int, default=3, help="unet input channel size"
+    )
+    parser.add_argument("--unet_ch", type=int, default=128, help="unet channel size")
+    parser.add_argument(
+        "--unet_ch_mult",
+        type=int,
+        default=[1, 2, 2, 2],
+        nargs="+",
+        help="unet channel multiplier",
+    )
+    parser.add_argument(
+        "--unet_attn",
+        type=int,
+        default=[1, 2, 3],
+        nargs="+",
+        help="unet attantion stage index",
+    )
+    parser.add_argument(
+        "--unet_num_res_blocks", type=int, default=2, help="unet number of res blocks"
+    )
+    parser.add_argument("--unet_dropout", type=float, default=0.0, help="unet dropout")
 
     # ddpm
     parser.add_argument(
@@ -111,33 +157,6 @@ def parse_args():
     parser.add_argument(
         "--clip_sample_range", type=float, default=1.0, help="clip sample range"
     )
-
-    # unet
-    parser.add_argument(
-        "--unet_in_size", type=int, default=128, help="unet input image size"
-    )
-    parser.add_argument(
-        "--unet_in_ch", type=int, default=3, help="unet input channel size"
-    )
-    parser.add_argument("--unet_ch", type=int, default=128, help="unet channel size")
-    parser.add_argument(
-        "--unet_ch_mult",
-        type=int,
-        default=[1, 2, 2, 2],
-        nargs="+",
-        help="unet channel multiplier",
-    )
-    parser.add_argument(
-        "--unet_attn",
-        type=int,
-        default=[1, 2, 3],
-        nargs="+",
-        help="unet attantion stage index",
-    )
-    parser.add_argument(
-        "--unet_num_res_blocks", type=int, default=2, help="unet number of res blocks"
-    )
-    parser.add_argument("--unet_dropout", type=float, default=0.0, help="unet dropout")
 
     # vae
     parser.add_argument(
@@ -173,12 +192,17 @@ def parse_args():
     parser.add_argument(
         "--ckpt", type=str, default=None, help="checkpoint path for inference"
     )
+    parser.add_argument("--keep_last_n", type=int, default=10, help="number of checkpoints kept")
 
     # evaluation for inference
     parser.add_argument('--eval_during_train', type=str2bool, default=False,
                     help='Whether to run evaluation during training (e.g., on 500 images)')
     parser.add_argument('--eval_every_n_epoch', type=int, default=5,
                     help='Evaluate every n epochs during training')
+    parser.add_argument('--eval_samples', type=int, default=500,
+                    help='the number of samples to generate for evaluation')
+    parser.add_argument('--eval_batch_size', type=int, default=50,
+                    help='batch size for evaluation')
 
     # distributed training settings (used in DDP or multi-GPU)
     parser.add_argument(
@@ -198,22 +222,6 @@ def parse_args():
         type=int,
         default=0,
         help="Local rank of the process (used by torch.distributed.launch)",
-    )
-
-    parser.add_argument(
-        "--dataset", type=str, default="imagenet100", choices=["imagenet100", "cifar10"]
-    )
-    parser.add_argument(
-        "--val_data_dir",
-        type=str,
-        default="data/imagenet100_128x128/validation",
-        help="Path to validation data folder (for ImageFolder-based datasets)",
-    )
-    parser.add_argument(
-        "--subset",
-        type=float,
-        default=1.0,
-        help="Fraction of validation set to use (e.g., 0.1 for 10%)",
     )
 
     # first parse of command-line args to check for config file
@@ -280,6 +288,8 @@ def main():
     # TOOD: use image folder for your train dataset
     print(f"Data directory absolute path: {os.path.abspath(args.data_dir)}")
     train_dataset = datasets.ImageFolder(args.data_dir, transform=transform)
+    subset_size = int(len(train_dataset) * args.subset)
+    train_dataset = torch.utils.data.Subset(train_dataset, range(subset_size))
 
     # TODO: setup dataloader
     sampler = None
@@ -414,7 +424,7 @@ def main():
     )  # todo: change tmax, eta_min
 
     # todo: check this
-    scaler = torch.amp.GradScaler(enabled=args.mixed_precision in ["fp16", "bf16"])
+    scaler = torch.cuda.amp.GradScaler(enabled=args.mixed_precision in ["fp16", "bf16"])
     
     # max train steps
     num_update_steps_per_epoch = len(train_loader)
@@ -524,6 +534,10 @@ def main():
         # TODO: finish this
         for step, (images, labels) in enumerate(train_loader):
 
+            # initialize the save model flags to False 
+            save_best_fid, save_best_is = False, False
+
+            # record batch size
             batch_size = images.size(0)
 
             # TODO: send to device
@@ -534,8 +548,7 @@ def main():
             if vae is not None:
                 # use vae to encode images as latents
                 with torch.no_grad():
-                    with torch.amp.autocast(
-                        device_type="cuda",
+                    with torch.cuda.amp.autocast(
                         enabled=args.mixed_precision in ["fp16", "bf16"],
                     ):
                         images = vae.encode(images).sample()
@@ -565,8 +578,8 @@ def main():
             noisy_images = scheduler.add_noise(images, noise, timesteps)
 
             # TODO: model prediction
-            with torch.amp.autocast(
-                device_type="cuda", enabled=args.mixed_precision in ["fp16", "bf16"],
+            with torch.cuda.amp.autocast(
+                enabled=args.mixed_precision in ["fp16", "bf16"],
             ):
                 model_pred = unet(noisy_images, timesteps, class_emb)
 
@@ -663,17 +676,6 @@ def main():
         if is_primary(args) and wandb_logger:
             wandb_logger.log({"gen_images": wandb.Image(grid_image)})
 
-        #save checkpoint
-        if is_primary(args):
-            save_checkpoint(
-                unet_wo_ddp,
-                scheduler_wo_ddp,
-                vae_wo_ddp,
-                class_embedder,
-                optimizer,
-                epoch,
-                save_dir=save_dir,
-            )
 
         # -------------------------------------------
         # -----------FID / IS Evaluation(Optional)-----------
@@ -684,9 +686,10 @@ def main():
 
             # Generate 500 images（unconditional or conditional）
             all_images = []
-            num_samples = 500
-            bs = 50
+            num_samples = args.eval_samples
+            bs = args.eval_batch_size
             steps = num_samples // bs
+            logger.info(f"Generating {num_samples} images with batch size {bs} in {steps} steps...")
 
             for _ in range(steps):
                 if args.use_cfg:
@@ -736,14 +739,6 @@ def main():
                 logger=logger
             )
 
-            # log to wandb
-            if wandb.run:
-                wandb.log({
-                    "FID_train_eval": fid_val,
-                    "IS_train_eval": is_mean,
-                    "epoch": epoch + 1
-                })
-
             # Save the best fid/is model to wandb
             # Initialization fid and is
             if not hasattr(args, "best_fid") or not hasattr(args, "best_is"):
@@ -753,27 +748,41 @@ def main():
             # compare and save best FID model
             if fid_val < args.best_fid:
                 args.best_fid = fid_val
-                fid_path = os.path.join(save_dir, "best_fid_model.pth")
-                torch.save(unet_wo_ddp.state_dict(), fid_path)
-                logger.info(f"New best FID model saved at epoch {epoch+1}, FID={fid_val:.4f}")
-
-                if wandb.run:
-                    artifact = wandb.Artifact("best_fid_model", type="model")
-                    artifact.add_file(fid_path)
-                    wandb.log_artifact(artifact, aliases=["best_fid"])
+                save_best_fid = True
 
             # compare and save best IS model
             if is_mean > args.best_is:
                 args.best_is = is_mean
-                is_path = os.path.join(save_dir, "best_is_model.pth")
-                torch.save(unet_wo_ddp.state_dict(), is_path)
-                logger.info(f"New best IS model saved at epoch {epoch+1}, IS={is_mean:.4f}")
+                save_best_is = True
+            
+            # log to console
+            logger.info(
+                f"Epoch {epoch+1}/{args.num_epochs}, FID: {fid_val}, IS: {is_mean} ± {is_std}, Best FID: {args.best_fid}, Best IS: {args.best_is}"
+            )
 
-                if wandb.run:
-                    artifact = wandb.Artifact("best_is_model", type="model")
-                    artifact.add_file(is_path)
-                    wandb.log_artifact(artifact, aliases=["best_is"])
+            # log to wandb
+            if is_primary(args) and wandb_logger:
+                wandb_logger.log({
+                    "fid": fid_val,
+                    "is": is_mean,
+                    'best_fid': args.best_fid,
+                    'best_is': args.best_is
+                })
 
+        #save checkpoint
+        if is_primary(args):
+            save_checkpoint(
+                unet_wo_ddp,
+                scheduler_wo_ddp,
+                vae_wo_ddp,
+                class_embedder,
+                optimizer,
+                epoch,
+                save_dir=save_dir,
+                keep_last_n=args.keep_last_n,
+                save_best_fid=save_best_fid,
+                save_best_is=save_best_is
+            )
 
 
 if __name__ == "__main__":

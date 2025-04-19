@@ -23,7 +23,7 @@ def load_checkpoint(unet, scheduler, vae=None, class_embedder=None, optimizer=No
     
         
 
-def save_checkpoint(unet, scheduler, vae=None, class_embedder=None, optimizer=None, epoch=None, save_dir='checkpoints'):
+def save_checkpoint(unet, scheduler, vae=None, class_embedder=None, optimizer=None, epoch=None, save_dir='checkpoints', keep_last_n=10, save_best_fid=False, save_best_is=False):
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
@@ -52,7 +52,7 @@ def save_checkpoint(unet, scheduler, vae=None, class_embedder=None, optimizer=No
     print(f"Checkpoint saved at {checkpoint_path}")
     
     # Manage checkpoint history
-    manage_checkpoints(save_dir, keep_last_n=10)
+    manage_checkpoints(save_dir, keep_last_n=keep_last_n)
 
     # Save the last_model，and upload to WandB
     last_model_path = os.path.join(save_dir, "last_model.pth")
@@ -64,6 +64,29 @@ def save_checkpoint(unet, scheduler, vae=None, class_embedder=None, optimizer=No
         artifact.add_file(last_model_path)
         wandb.log_artifact(artifact, aliases=["latest"])
         print("Uploaded last model to WandB with alias 'latest'")
+    
+    # Save the best fid model and upload to WandB
+    if save_best_fid:
+        best_fid_model_path = os.path.join(save_dir, "best_fid_model.pth")
+        torch.save(checkpoint, best_fid_model_path)
+        print(f"Best FID model saved at {best_fid_model_path}")
+        
+        if wandb.run:
+            artifact = wandb.Artifact("best_fid_model", type="model")
+            artifact.add_file(best_fid_model_path)
+            wandb.log_artifact(artifact, aliases=["best-fid"])
+            print("Uploaded best FID model to WandB with alias 'best-fid'")
+
+    if save_best_is:
+        best_is_model_path = os.path.join(save_dir, "best_is_model.pth")
+        torch.save(checkpoint, best_is_model_path)
+        print(f"Best IS model saved at {best_is_model_path}")
+        
+        if wandb.run:
+            artifact = wandb.Artifact("best_is_model", type="model")
+            artifact.add_file(best_is_model_path)
+            wandb.log_artifact(artifact, aliases=["best-is"])
+            print("Uploaded best IS model to WandB with alias 'best-is'")
 
 def manage_checkpoints(save_dir, keep_last_n=10):
     # List all checkpoint files in the save directory
