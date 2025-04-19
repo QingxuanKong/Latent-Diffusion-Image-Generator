@@ -414,8 +414,7 @@ def main():
     )  # todo: change tmax, eta_min
 
     # todo: check this
-    #scaler = torch.amp.GradScaler(enabled=args.mixed_precision in ["fp16", "bf16"])
-    scaler = GradScaler(enabled=args.mixed_precision != "none")
+    scaler = torch.amp.GradScaler(enabled=args.mixed_precision in ["fp16", "bf16"])
     
     # max train steps
     num_update_steps_per_epoch = len(train_loader)
@@ -537,7 +536,7 @@ def main():
                 with torch.no_grad():
                     with torch.amp.autocast(
                         device_type="cuda",
-                        enabled=args.mixed_precision != "none",
+                        enabled=args.mixed_precision in ["fp16", "bf16"],
                     ):
                         images = vae.encode(images).sample()
                 # NOTE: do not change this line, this is to ensure the latent has unit std
@@ -567,7 +566,7 @@ def main():
 
             # TODO: model prediction
             with torch.amp.autocast(
-                device_type="cuda", enabled=args.mixed_precision != "none",
+                device_type="cuda", enabled=args.mixed_precision in ["fp16", "bf16"],
             ):
                 model_pred = unet(noisy_images, timesteps, class_emb)
 
