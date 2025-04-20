@@ -93,7 +93,7 @@ def parse_args():
     )
 
     # log
-    parser.add_argument("--DEBUG", type=str, default=None, help="debug_mode")
+    parser.add_argument("--DEBUG", type=str2bool, default=False, help="debug_mode")
     parser.add_argument("--wandb_key", type=str, default=None, help="wandb_key")
     parser.add_argument("--project_name", type=str, default=None, help="project_name")
     parser.add_argument("--run_name", type=str, default=None, help="run_name")
@@ -127,6 +127,9 @@ def parse_args():
         "--unet_num_res_blocks", type=int, default=2, help="unet number of res blocks"
     )
     parser.add_argument("--unet_dropout", type=float, default=0.0, help="unet dropout")
+    parser.add_argument(
+        "--adagn_resblock", type=str2bool, default=False, help="resnet architecture"
+    )
 
     # ddpm
     parser.add_argument(
@@ -265,7 +268,6 @@ def main():
     # parse arguments
     args = parse_args()
 
-    print("[DEBUG] args =")
     for k, v in vars(args).items():
         print(f"  {k}: {v} (type: {type(v)})")
 
@@ -308,7 +310,6 @@ def main():
         ]
     )
     # TOOD: use image folder for your train dataset
-    print(f"Data directory absolute path: {os.path.abspath(args.data_dir)}")
     train_dataset = datasets.ImageFolder(args.data_dir, transform=transform)
     subset_size = int(len(train_dataset) * args.subset)
     train_dataset = torch.utils.data.Subset(train_dataset, range(subset_size))
@@ -372,6 +373,7 @@ def main():
         dropout=args.unet_dropout,
         conditional=args.use_cfg,
         c_dim=args.unet_ch,
+        adagn_resblock=args.adagn_resblock,
     )
     # preint number of parameters
     num_params = sum(p.numel() for p in unet.parameters() if p.requires_grad)
@@ -646,7 +648,7 @@ def main():
                     f"Epoch {epoch+1}/{args.num_epochs}, Step {step}/{num_update_steps_per_epoch}, Loss {loss.item()} ({loss_m.avg})"
                 )
 
-                if is_primary(args) and wandb_logger:
+                if is_primary(args) and not args.DEBUG:
                     wandb_logger.log(
                         {
                             "loss": loss_m.avg,
@@ -695,7 +697,7 @@ def main():
             grid_image.paste(image, (x, y))
 
         # Send to wandb
-        if is_primary(args) and wandb_logger:
+        if is_primary(args) and not args.DEBUG:
             wandb_logger.log({"gen_images": wandb.Image(grid_image)})
 
         # -------------------------------------------
@@ -791,7 +793,7 @@ def main():
             )
 
             # log to wandb
-            if is_primary(args) and wandb_logger:
+            if is_primary(args) and not args.DEBUG:
                 wandb_logger.log(
                     {
                         "fid": fid_val,
