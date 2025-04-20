@@ -12,7 +12,7 @@ num_classes: 100
 # training
 batch_size: 32
 num_workers: 4
-num_epochs: 5
+num_epochs: 50
 
 # optimizer
 learning_rate: 2e-4
@@ -26,7 +26,10 @@ weight_decay: 1e-4
 # Ivy wandb
 wandb_key: dbcb5b22a7512074ad91148adc5794d1955289ad
 project_name: IDL-hw5-Ivy
-run_name: ddim-cfg-epoch5-Baseline
+run_name: ddpm-cfg-epoch60-Baseline
+resume: True
+wandb_resume_id: 0n7x860l
+resume_checkpoint_path: /jet/home/ygao8/11785-hw5/experiments/exp-0-ddpm-cfg-epoch60-Baseline/checkpoints/last_model.pth
 
 # unet
 unet_in_size: 64
@@ -54,9 +57,8 @@ cond_drop_rate: 0.1
 #latent
 latent_ddpm: False
 
-use_ddim: True
+use_ddim: False
 
 #evaluation during training
 eval_during_train: True
-eval_every_n_epoch: 1 # it takes 10 min to generate 500 images for evaluation each time
-
+eval_every_n_epoch: 5 # it takes 10 min to generate 500 images for evaluation each time

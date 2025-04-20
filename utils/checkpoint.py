@@ -20,6 +20,7 @@ def load_checkpoint(unet, scheduler, vae=None, class_embedder=None, optimizer=No
         print("loading class_embedder")
         class_embedder.load_state_dict(checkpoint['class_embedder_state_dict'])
     
+    return checkpoint
     
         
 
@@ -48,8 +49,8 @@ def save_checkpoint(unet, scheduler, vae=None, class_embedder=None, optimizer=No
         checkpoint['epoch'] = epoch
     
     # Save checkpoint
-    torch.save(checkpoint, checkpoint_path)
-    print(f"Checkpoint saved at {checkpoint_path}")
+    # torch.save(checkpoint, checkpoint_path)
+    # print(f"Checkpoint saved at {checkpoint_path}")
     
     # Manage checkpoint history
     manage_checkpoints(save_dir, keep_last_n=10)

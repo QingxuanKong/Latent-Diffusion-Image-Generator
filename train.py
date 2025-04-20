@@ -24,6 +24,7 @@ from utils import (
     AverageMeter,
     str2bool,
     save_checkpoint,
+    load_checkpoint,
     evaluate_fid_is,
     build_val_loader,
 )
@@ -81,6 +82,13 @@ def parse_args():
         choices=["fp16", "bf16", "fp32", "none"],
         help="mixed precision",
     )
+    parser.add_argument(
+        "--resume",
+        type=str2bool,
+        default=False,
+    )
+    parser.add_argument("--wandb_resume_id", type=str, default=None, help="wandb run ID to resume logging into")
+    parser.add_argument("--resume_checkpoint_path", type=str, default=None)
 
     # ddpm
     parser.add_argument(
@@ -240,6 +248,8 @@ def main():
     for k, v in vars(args).items():
         print(f"  {k}: {v} (type: {type(v)})")
 
+    print(f"[DEBUG] use_ddim: {args.use_ddim}, latent_ddpm: {args.latent_ddpm}")
+    
     # seed everything
     seed_everything(args.seed)
 
@@ -458,6 +468,28 @@ def main():
         class_embedder=class_embedder_wo_ddp,
     )
 
+    # ----------------------------------------------------
+    # -------- Resume training from checkpoint if needed --------
+    # ----------------------------------------------------
+    if args.resume:
+        checkpoint_path = args.resume_checkpoint_path
+        if os.path.exists(checkpoint_path):
+            checkpoint = load_checkpoint(
+                unet_wo_ddp,
+                scheduler_wo_ddp,
+                vae=vae_wo_ddp,
+                class_embedder=class_embedder_wo_ddp,
+                optimizer=optimizer,
+                checkpoint_path=checkpoint_path,
+            )
+            print(f"[INFO] Resumed from checkpoint: {checkpoint_path}")
+        else:
+            print(f"[WARN] Resume flag is True but no checkpoint found at: {checkpoint_path}")
+        
+        if 'epoch' in checkpoint:
+            start_epoch = checkpoint['epoch'] + 1
+        else:
+            start_epoch = 0
     # -------------------------------------------
     # ----------------dump config----------------
     # -------------------------------------------
@@ -474,12 +506,22 @@ def main():
     # -------------------------------------------
     # start tracker
     if is_primary(args) and not args.DEBUG:
-        wandb_logger = wandb.init(
-            project=args.project_name,
-            name=args.run_name,
-            config=vars(args),
-            settings=wandb.Settings(api_key=args.wandb_key),
-        )
+        wandb_kwargs = {
+            "project": args.project_name,
+            "name": args.run_name,
+            "config": vars(args),
+            "settings": wandb.Settings(api_key=args.wandb_key),
+        }
+
+        # If resuming, use the same run id
+        if args.resume and hasattr(args, "wandb_resume_id") and args.wandb_resume_id:
+            wandb_kwargs["id"] = args.wandb_resume_id
+            wandb_kwargs["resume"] = "must"
+            print(f"[INFO] Resuming WandB run: {args.wandb_resume_id}")
+        else:
+            wandb_kwargs["resume"] = None  # fresh run
+
+        wandb_logger = wandb.init(**wandb_kwargs)
 
     # Start training
     if is_primary(args):
@@ -503,7 +545,7 @@ def main():
     # Only show the progress bar once on each machine.
     progress_bar = tqdm(range(args.max_train_steps), disable=not is_primary(args))
 
-    for epoch in range(args.num_epochs):
+    for epoch in range(start_epoch, args.num_epochs):
 
         # -------------------------------------------
         # -------------------train-------------------
@@ -616,7 +658,8 @@ def main():
                     wandb_logger.log(
                         {
                             "loss": loss_m.avg,
-                        }
+                        },
+                        step=epoch
                     )
 
         # -------------------------------------------
@@ -662,7 +705,7 @@ def main():
 
         # Send to wandb
         if is_primary(args) and wandb_logger:
-            wandb_logger.log({"gen_images": wandb.Image(grid_image)})
+            wandb_logger.log({"gen_images": wandb.Image(grid_image)}, step=epoch)
 
         #save checkpoint
         if is_primary(args):
@@ -743,7 +786,7 @@ def main():
                     "FID_train_eval": fid_val,
                     "IS_train_eval": is_mean,
                     "epoch": epoch + 1
-                })
+                }, step=epoch)
 
             # Save the best fid/is model to wandb
             # Initialization fid and is
