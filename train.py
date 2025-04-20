@@ -312,8 +312,6 @@ def main():
     for k, v in vars(args).items():
         print(f"  {k}: {v} (type: {type(v)})")
 
-    print(f"[DEBUG] use_ddim: {args.use_ddim}, latent_ddpm: {args.latent_ddpm}")
-
     # seed everything
     seed_everything(args.seed)
 
@@ -737,8 +735,7 @@ def main():
                     wandb_logger.log(
                         {
                             "loss": loss_m.avg,
-                        },
-                        step=epoch,
+                        }
                     )
 
         # -------------------------------------------
@@ -856,16 +853,6 @@ def main():
                 total_images=eval_samples,
                 logger=logger,
             )
-
-            # log to wandb
-            if wandb.run:
-                wandb.log(
-                    {
-                        "FID_train_eval": fid_val,
-                        "IS_train_eval": is_mean,
-                        "epoch": epoch + 1,
-                    }
-                )
 
             # Save the best fid/is model to wandb
             # Initialization fid and is

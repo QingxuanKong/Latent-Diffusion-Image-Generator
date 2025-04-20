@@ -35,7 +35,7 @@ class UNet(nn.Module):
         conditional=False,
         c_dim=None,
         # --- New arguments for AdaGN ResNet ---
-        adagn_resblock=False,
+        use_adagn_resblock=False,
         # --- New arguments for Transformer Bottleneck ---
         use_transformer_bottleneck=False,  # Flag to enable transformer
         transformer_depth=1,  # Number of transformer blocks
@@ -48,8 +48,10 @@ class UNet(nn.Module):
         self.input_size = input_size
         self.input_ch = input_ch
         self.T = T
+        self.conditional = conditional
+        self.c_dim = c_dim if conditional else 0
 
-        BlockClass = AdaGN_ResBlock if adagn_resblock else ResBlock
+        BlockClass = AdaGN_ResBlock if use_adagn_resblock else ResBlock
 
         tdim = ch * 4
         self.time_embedding = TimeEmbedding(T, ch, tdim)
@@ -153,6 +155,7 @@ class UNet(nn.Module):
                         attn=(i in attn),
                         cross_attn=conditional and (i in attn),
                         cdim=c_dim,
+                        conditional=conditional,
                     )
                 )
                 now_ch = out_ch
