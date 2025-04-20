@@ -192,7 +192,7 @@ def parse_args():
     parser.add_argument(
         "--cond_drop_rate",
         type=float,
-        default=2.0,
+        default=0.1,
         help="use cfg for conditional (latent) ddpm",
     )
 
@@ -564,6 +564,7 @@ def main():
             start_epoch = 0
     else:
         start_epoch = 0
+
     # -------------------------------------------
     # ----------------dump config----------------
     # -------------------------------------------
@@ -905,6 +906,8 @@ def main():
                 keep_best_model=args.keep_best_model,
                 if_best_fid=if_best_fid,
                 if_best_is=if_best_is,
+                best_fid=float("inf") if not args.best_fid else args.best_fid,
+                best_is=float("-inf") if not args.best_is else args.best_is,
             )
 
     if is_primary(args) and not args.DEBUG:

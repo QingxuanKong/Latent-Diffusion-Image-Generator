@@ -25,8 +25,12 @@ def load_checkpoint(
         vae.load_state_dict(checkpoint["vae_state_dict"])
 
     if class_embedder is not None and "class_embedder_state_dict" in checkpoint:
-        print("loading class_embedder")
+        print("loading class embedder")
         class_embedder.load_state_dict(checkpoint["class_embedder_state_dict"])
+
+    if optimizer is not None and "optimizer_state_dict" in checkpoint:
+        print("loading optimizer")
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
     return checkpoint
 
@@ -44,6 +48,8 @@ def save_checkpoint(
     keep_best_model=True,
     if_best_fid=False,
     if_best_is=False,
+    best_fid=None,
+    best_is=None,
 ):
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
@@ -67,6 +73,12 @@ def save_checkpoint(
 
     if epoch is not None:
         checkpoint["epoch"] = epoch
+
+    if best_fid is not None:
+        checkpoint["best_fid"] = best_fid
+
+    if best_is is not None:
+        checkpoint["best_is"] = best_is
 
     # Save checkpoint
     torch.save(checkpoint, checkpoint_path)
