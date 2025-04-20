@@ -34,7 +34,7 @@ wandb_key: dbcb5b22a7512074ad91148adc5794d1955289ad
 project_name: IDL-hw5-Ivy
 run_name: ddim-cfg-epoch5-Baseline
 resume_checkpoint_path: /jet/home/ygao8/11785-hw5/experiments/exp-4-ddpm-cfg-epoch60-Baseline/checkpoints/last_model.pth
-resume: True
+resume: False
 wandb_resume_id: 0n7x860l
 
 # # Bryan wandb
@@ -76,4 +76,8 @@ eval_during_train: True
 eval_every_n_epoch: 1 # it takes 10 min to generate 500 images for evaluation each time
 eval_samples: 500 # 500
 eval_classes: 50 # 50
+
+#inference
+inference_samples: 5000
+ckpt: /jet/home/ygao8/11785-hw5/experiments/exp-4-ddpm-cfg-epoch60-Baseline/checkpoints/last_model.pth
 

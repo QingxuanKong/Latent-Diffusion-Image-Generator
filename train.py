@@ -38,12 +38,6 @@ logger = get_logger(__name__)
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a model.")
 
-    parser.add_argument(
-        "--DEBUG",
-        type=str2bool,
-        default=False,
-    )
-
     # config file
     parser.add_argument(
         "--config",
@@ -77,9 +71,6 @@ def parse_args():
     parser.add_argument("--image_size", type=int, default=128, help="image size")
     parser.add_argument(
         "--num_classes", type=int, default=100, help="number of classes in dataset"
-    )
-    parser.add_argument(
-        "--output_dir", type=str, default="experiments",
     )
 
     # training
@@ -232,7 +223,7 @@ def parse_args():
         "--keep_best_model", type=str2bool, default=True, help="keep best model"
     )
 
-    # evaluation for inference
+    # evaluation for inference in training
     parser.add_argument(
         "--eval_during_train",
         type=str2bool,
@@ -256,6 +247,11 @@ def parse_args():
     )
     parser.add_argument(
         "--eval_classes", type=int, default=50, help="batch size for evaluation"
+    )
+
+    # inference
+    parser.add_argument(
+        "--inference_samples", type=int, default=5000, help="Total number of images generated in inference.py"
     )
 
     # distributed training settings (used in DDP or multi-GPU)
@@ -547,6 +543,8 @@ def main():
             start_epoch = checkpoint["epoch"] + 1
         else:
             start_epoch = 0
+    else:
+        start_epoch = 0
     # -------------------------------------------
     # ----------------dump config----------------
     # -------------------------------------------
