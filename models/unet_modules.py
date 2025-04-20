@@ -1,23 +1,26 @@
 import math
-import torch 
-import torch.nn as nn 
+import torch
+import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import init
-
 
 
 class TimeEmbedding(nn.Module):
     def __init__(self, T, d_model, dim):
         assert d_model % 2 == 0
         super().__init__()
-        emb = torch.arange(0, d_model, step=2) / d_model * math.log(10000)
-        emb = torch.exp(-emb)
-        pos = torch.arange(T).float()
-        emb = pos[:, None] * emb[None, :]
+        emb = (
+            torch.arange(0, d_model, step=2) / d_model * math.log(10000)
+        )  # shape: (d_model//2,)
+        emb = torch.exp(-emb)  # shape: (d_model//2,)
+        pos = torch.arange(T).float()  # shape: (T,)
+        emb = pos[:, None] * emb[None, :]  # shape: (T, d_model//2)
         assert list(emb.shape) == [T, d_model // 2]
-        emb = torch.stack([torch.sin(emb), torch.cos(emb)], dim=-1)
+        emb = torch.stack(
+            [torch.sin(emb), torch.cos(emb)], dim=-1
+        )  # shape: (T, d_model//2, 2)
         assert list(emb.shape) == [T, d_model // 2, 2]
-        emb = emb.view(T, d_model).contiguous()
+        emb = emb.view(T, d_model).contiguous()  # shape: (T, d_model)
 
         self.timembedding = nn.Sequential(
             nn.Embedding.from_pretrained(emb),
@@ -36,7 +39,6 @@ class TimeEmbedding(nn.Module):
     def forward(self, t):
         emb = self.timembedding(t)
         return emb
-
 
 
 class DownSample(nn.Module):
@@ -66,8 +68,7 @@ class UpSample(nn.Module):
 
     def forward(self, x, temb=None, cemb=None):
         _, _, H, W = x.shape
-        x = F.interpolate(
-            x, scale_factor=2, mode='nearest')
+        x = F.interpolate(x, scale_factor=2, mode="nearest")
         x = self.main(x)
         return x
 
@@ -148,12 +149,14 @@ class CrossAttnBlock(nn.Module):
         v = self.proj_v(class_emb).unsqueeze(1)  # Shape: (B, 1, in_ch)
 
         # Attention weights
-        w = torch.bmm(q, k.permute(0, 2, 1)) * (int(C) ** (-0.5))
-        w = F.softmax(w, dim=-1)
+        w = torch.bmm(q, k.permute(0, 2, 1)) * (int(C) ** (-0.5))  # Shape: (B, H*W, 1)
+        w = F.softmax(w, dim=-1)  # Shape: (B, H*W, 1)
 
         # Attention output
-        h = torch.bmm(w, v)
-        h = h.view(B, H, W, C).permute(0, 3, 1, 2).contiguous()
+        h = torch.bmm(w, v)  # Shape: (B, H*W, in_ch)
+        h = (
+            h.view(B, H, W, C).permute(0, 3, 1, 2).contiguous()
+        )  # Shape: (B, in_ch, H, W)
 
         # Final projection and skip connection
         h = self.proj(h)
@@ -162,7 +165,9 @@ class CrossAttnBlock(nn.Module):
 
 
 class ResBlock(nn.Module):
-    def __init__(self, in_ch, out_ch, tdim, dropout, attn=False, cross_attn=False, cdim=None):
+    def __init__(
+        self, in_ch, out_ch, tdim, dropout, attn=False, cross_attn=False, cdim=None
+    ):
         super().__init__()
         self.block1 = nn.Sequential(
             nn.GroupNorm(32, in_ch),
@@ -192,7 +197,7 @@ class ResBlock(nn.Module):
             self.cross_attn = CrossAttnBlock(out_ch, cdim)
         else:
             self.cross_attn = nn.Identity()
-            
+
         self.initialize()
 
     def initialize(self):
@@ -213,4 +218,3 @@ class ResBlock(nn.Module):
         if isinstance(self.cross_attn, CrossAttnBlock):
             h = self.cross_attn(h, cemb)
         return h
-

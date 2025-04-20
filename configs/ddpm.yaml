@@ -1,10 +1,9 @@
 seed: 42
 
 # dataset
-#data_dir: /jet/home/ikong/hw5/data
-data_dir: /jet/home/ygao8/11785-hw5/data
-val_data_dir: /jet/home/ygao8/11785-hw5/data/imagenet100_128x128/validation
 dataset: imagenet100
+data_dir: /jet/home/ikong/hw5/data/
+val_data_dir: /jet/home/ikong/hw5/data/imagenet100_128x128/validation
 subset: 1
 image_size: 64
 num_classes: 100
@@ -12,13 +11,13 @@ num_classes: 100
 # training
 batch_size: 32
 num_workers: 4
-num_epochs: 50
+num_epochs: 5
 
 # optimizer
 learning_rate: 2e-4
 weight_decay: 1e-4
 
-# wandb
+# Isla wandb
 # wandb_key: b6dff554fc854aea97af8dccb735c241a19a6615
 # project_name: dl-hw5
 # run_name: ddim-timestep(1000,100)-epoch(5)
@@ -26,10 +25,7 @@ weight_decay: 1e-4
 # Ivy wandb
 wandb_key: dbcb5b22a7512074ad91148adc5794d1955289ad
 project_name: IDL-hw5-Ivy
-run_name: ddpm-cfg-epoch60-Baseline
-resume: True
-wandb_resume_id: 0n7x860l
-resume_checkpoint_path: /jet/home/ygao8/11785-hw5/experiments/exp-0-ddpm-cfg-epoch60-Baseline/checkpoints/last_model.pth
+run_name: ddim-cfg-epoch5-Baseline
 
 # unet
 unet_in_size: 64
@@ -40,7 +36,7 @@ unet_attn: [2, 3]
 unet_num_res_blocks: 2
 unet_dropout: 0.0
 
-# diffusion
+# ddpm
 num_train_timesteps: 1000
 num_inference_steps: 1000
 beta_start: 0.0002
@@ -49,16 +45,20 @@ beta_schedule: linear
 variance_type: fixed_small
 predictor_type: epsilon
 
+#latent
+latent_ddpm: True
+
 # cfg
-use_cfg: True
+use_cfg: False
 cfg_guidance_scale: 3.0
 cond_drop_rate: 0.1
 
 #latent
 latent_ddpm: False
 
-use_ddim: False
+use_ddim: True
 
 #evaluation during training
 eval_during_train: True
-eval_every_n_epoch: 5 # it takes 10 min to generate 500 images for evaluation each time
+eval_every_n_epoch: 1 # it takes 10 min to generate 500 images for evaluation each time
+

@@ -98,17 +98,16 @@ class DDPMPipeline:
         image = randn_tensor(
             image_shape, generator=generator, device=device, dtype=torch.float32
         )
-        print(
-            f"DEBUG: Initial noise stats - min: {image.min().item():.4f}, max: {image.max().item():.4f}, mean: {image.mean().item():.4f}"
-        )
+        # print(
+        #     f"DEBUG: Initial noise stats - min: {image.min().item():.4f}, max: {image.max().item():.4f}, mean: {image.mean().item():.4f}"
+        # )
 
         # TODO: set step values using set_timesteps of scheduler
         self.scheduler.set_timesteps(num_inference_steps, device)
 
         # TODO: inverse diffusion process with for loop
-        debug_images = []
         for i, t in enumerate(self.progress_bar(self.scheduler.timesteps)):
-            print(f"\nDEBUG: Step {t.item()+1}/{len(self.scheduler.timesteps)}")
+            # print(f"\nDEBUG: Step {t.item()+1}/{len(self.scheduler.timesteps)}")
 
             # NOTE: this is for CFG
             if guidance_scale is not None and guidance_scale != 1.0:
@@ -125,9 +124,9 @@ class DDPMPipeline:
 
             # TODO: 1. predict noise model_output
             model_output = self.unet(model_input, t, c)  # what is c
-            print(
-                f"DEBUG: Model output shape: {model_output.shape}, min: {model_output.min().item():.4f}, max: {model_output.max().item():.4f}"
-            )
+            # print(
+            #     f"DEBUG: Model output shape: {model_output.shape}, min: {model_output.min().item():.4f}, max: {model_output.max().item():.4f}"
+            # )
 
             if guidance_scale is not None and guidance_scale != 1.0:
                 # TODO: implement cfg
@@ -138,9 +137,9 @@ class DDPMPipeline:
 
             # TODO: 2. compute previous image: x_t -> x_t-1 (less noisy) using scheduler
             prev_image = self.scheduler.step(model_output, t, image, generator)
-            print(
-                f"DEBUG: After step - min: {prev_image.min().item():.4f}, max: {prev_image.max().item():.4f}, diff: {torch.abs(prev_image - image).mean().item():.6f}"
-            )
+            # print(
+            #     f"DEBUG: After step - min: {prev_image.min().item():.4f}, max: {prev_image.max().item():.4f}, diff: {torch.abs(prev_image - image).mean().item():.6f}"
+            # )
             image = prev_image
 
         # NOTE: this is for latent DDPM
@@ -149,14 +148,14 @@ class DDPMPipeline:
             # NOTE: remember to rescale your images
             image = 1 / 0.18215 * image
             # Decode the image
-            image = self.vae.decode(image).sample
+            image = self.vae.decode(image)
 
         # TODO: return final image, re-scale to [0, 1]
         image = (image + 1) / 2
         image = torch.clamp(image, 0, 1)
-        print(
-            f"DEBUG: Final image stats - min: {image.min().item():.4f}, max: {image.max().item():.4f}, mean: {image.mean().item():.4f}"
-        )
+        # print(
+        #     f"DEBUG: Final image stats - min: {image.min().item():.4f}, max: {image.max().item():.4f}, mean: {image.mean().item():.4f}"
+        # )
 
         # convert to PIL images
         image = image.cpu().permute(0, 2, 3, 1).numpy()

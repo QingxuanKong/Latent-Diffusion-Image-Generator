@@ -17,7 +17,13 @@ from torchvision.utils import make_grid
 from models import UNet, VAE, ClassEmbedder
 from schedulers import DDPMScheduler, DDIMScheduler
 from pipelines import DDPMPipeline
-from utils import seed_everything, load_checkpoint, is_primary, evaluate_fid_is, build_val_loader
+from utils import (
+    seed_everything,
+    load_checkpoint,
+    is_primary,
+    evaluate_fid_is,
+    build_val_loader,
+)
 
 from train import parse_args
 
@@ -65,7 +71,7 @@ def main():
         conditional=args.use_cfg,
         c_dim=args.unet_ch,
     )
-    # preint number of parameters
+    # print number of parameters
     num_params = sum(p.numel() for p in unet.parameters() if p.requires_grad)
     logger.info(f"Number of parameters: {num_params / 10 ** 6:.2f}M")
 
@@ -92,8 +98,12 @@ def main():
     class_embedder = None
     if args.use_cfg:
         # TODO: class embeder
-        class_embedder = ClassEmbedder(embed_dim=args.unet_ch, n_classes=args.num_classes,cond_drop_rate=0.0)
-        #class_embedder = ClassEmbedder(None)
+        class_embedder = ClassEmbedder(
+            embed_dim=args.unet_ch,
+            n_classes=args.num_classes,
+            cond_drop_rate=args.cond_drop_rate,
+        )
+        # class_embedder = ClassEmbedder(None)
 
     # send to device
     unet = unet.to(device)
@@ -142,17 +152,17 @@ def main():
     )
 
     logger.info("***** Running Inference *****")
-    
+
     # TODO: we run inference to generation 5000 images
     # TODO: with cfg, we generate 50 images per class
     all_images = []
     if args.use_cfg:
-        # generate 50 images per class
-        total_images = args.num_classes * 50
+        # generate images per class
+        total_images = args.inference_samples
+        batch_size = total_images // args.num_classes
         for i in tqdm(range(args.num_classes)):
-        #for i in tqdm(range(1)):
-            logger.info(f"Generating 50 images for class {i}")
-            batch_size = 50
+            # for i in tqdm(range(1)):
+            logger.info(f"Generating {batch_size} images for class {i}")
             classes = torch.full((batch_size,), i, dtype=torch.long, device=device)
             gen_images = pipeline(
                 batch_size=batch_size,
@@ -165,11 +175,11 @@ def main():
             all_images.append(gen_images)
     else:
         # generate 5000 images
-        total_images = 5000
+        total_images = args.inference_samples
         remaining = total_images
         batch_size = args.batch_size
 
-        while remaining > 0: 
+        while remaining > 0:
             curr_batch_size = min(batch_size, remaining)
             gen_images = pipeline(
                 batch_size=curr_batch_size,
@@ -191,20 +201,20 @@ def main():
     # now convert to tensor
     all_images = [to_tensor(img) for img in all_images]
     all_images = torch.stack(all_images, dim=0)
-    
+
     # sample from all_images
-    sample_images = all_images[:4] #Display the first 4 images
+    sample_images = all_images[:4]  # Display the first 4 images
     grid_image = Image.new("RGB", (4 * args.image_size, 1 * args.image_size))
     for i, image in enumerate(sample_images):
         x = (i % 4) * args.image_size
         y = 0
-        pil_img = transforms.ToPILImage()(image.cpu()) 
+        pil_img = transforms.ToPILImage()(image.cpu())
         grid_image.paste(pil_img, (x, y))
 
     if is_primary(args) and not args.DEBUG:
         wandb_logger.log({"infer_images": wandb.Image(grid_image)})
 
-    '''
+    """
     # TODO: load validation images as reference batch
     transform = transforms.Compose(
         [
@@ -292,7 +302,7 @@ def main():
 
     logger.info(f"FID: {fid_value.item():.2f}")
     logger.info(f"Inception Score: {is_mean.item():.2f} ± {is_std.item():.2f}")
-    '''
+    """
     val_loader = build_val_loader(
         dataset_name=args.dataset,
         val_data_dir=args.val_data_dir,
@@ -303,17 +313,18 @@ def main():
         subset_ratio=args.subset,
         distributed=args.distributed,
         world_size=args.world_size,
-        rank=args.rank
+        rank=args.rank,
     )
 
     fid_val, is_mean, is_std = evaluate_fid_is(
-        generated_images=all_images,         # [N, C, H, W] float in [-1, 1]
-        val_loader=val_loader,               # already built earlier
+        generated_images=all_images,  # [N, C, H, W] float in [-1, 1]
+        val_loader=val_loader,  # already built earlier
         device=device,
-        total_images=len(all_images),        # usually 5000
+        total_images=len(all_images),  # usually 5000
         batch_size=50,
-        logger=logger                        # so it prints via logger
+        logger=logger,  # so it prints via logger
     )
+
 
 if __name__ == "__main__":
     main()

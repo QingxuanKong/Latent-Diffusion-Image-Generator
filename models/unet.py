@@ -110,22 +110,28 @@ class UNet(nn.Module):
             t = t[None].to(x.device)
 
         # broadcast to batch dimension in a way that's compatible with ONNX/Core ML
+        # shape: (batch_size,)
         t = t * torch.ones(x.shape[0], dtype=t.dtype, device=t.device)
 
         # Timestep embedding
+        # shape: (batch_size, tdim)
         temb = self.time_embedding(t)
         # Downsampling
+        # shape: (batch_size, ch, h, w)
         h = self.stem(x)
         hs = [h]
         for layer in self.downblocks:
+            # shape: (batch_size, out_ch, h, w)
             h = layer(h, temb, c)
             hs.append(h)
         # Middle
         for layer in self.middleblocks:
+            # shape: (batch_size, now_channel, h, w)
             h = layer(h, temb, c)
         # Upsampling
         for layer in self.upblocks:
             if isinstance(layer, ResBlock):
+                # shape: (batch_size, reverse downsampling + last upsampling, h, w)
                 h = torch.cat([h, hs.pop()], dim=1)
             h = layer(h, temb, c)
         h = self.head(h)
