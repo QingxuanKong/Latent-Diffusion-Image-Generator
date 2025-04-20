@@ -37,12 +37,15 @@ run_name: ddpm-adagn_resnet
 # unet
 unet_in_size: 64
 unet_in_ch: 3
-unet_ch: 192
+unet_ch: 128
 unet_ch_mult: [1, 2, 2, 4]
 unet_attn: [2, 3]
 unet_num_res_blocks: 2
 unet_dropout: 0.0
-adagn_resblock: True # unet or AdaGN-ResBlock
+use_adagn_resblock: True
+use_transformer_bottleneck: False
+transformer_depth: 1
+transformer_num_heads: 8
 
 # ddpm
 num_train_timesteps: 1000
@@ -57,7 +60,7 @@ predictor_type: epsilon
 latent_ddpm: False
 
 # cfg
-use_cfg: False
+use_cfg: True
 cfg_guidance_scale: 3.0
 cond_drop_rate: 0.1
 
@@ -77,3 +80,4 @@ eval_classes: 50 # 50
 
 # inference
 inference_samples: 5000
+#

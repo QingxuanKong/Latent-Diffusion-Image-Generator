@@ -409,3 +409,109 @@ class AdaGN_ResBlock(nn.Module):
             h = self.cross_attn(h, cemb)
 
         return h
+
+
+class AdaLN(nn.Module):
+    """
+    Adaptive Layer Normalization
+    """
+
+    def __init__(self, embedding_dim, cond_embedding_dim):
+        super().__init__()
+        self.norm = nn.LayerNorm(embedding_dim, elementwise_affine=False)
+        # Projection layer for generating scale and shift parameters
+        self.projection = nn.Sequential(
+            nn.SiLU(),
+            nn.Linear(cond_embedding_dim, 2 * embedding_dim),
+        )
+        self.initialize()
+
+    def initialize(self):
+        # Zero-initialize the final projection layer for stability
+        init.zeros_(self.projection[-1].weight)
+        init.zeros_(self.projection[-1].bias)
+
+    def forward(self, x, cond_embedding):
+        # x: (B, N, D) or (N, B, D)
+        # cond_embedding: (B, cond_embedding_dim)
+
+        # Project conditional embedding to get scale and shift
+        scale_shift = self.projection(cond_embedding)  # (B, 2*D)
+        scale, shift = torch.chunk(scale_shift, 2, dim=1)  # (B, D), (B, D)
+
+        # Reshape scale and shift for broadcasting
+        # If x is (B, N, D), need (B, 1, D)
+        # If x is (N, B, D), need (1, B, D)
+        if x.dim() == 3 and x.shape[0] == scale.shape[0]:  # batch_first=True expected
+            scale = scale.unsqueeze(1)  # (B, 1, D)
+            shift = shift.unsqueeze(1)  # (B, 1, D)
+        elif x.dim() == 3 and x.shape[1] == scale.shape[0]:  # batch_first=False
+            scale = scale.unsqueeze(0)  # (1, B, D)
+            shift = shift.unsqueeze(0)  # (1, B, D)
+        else:
+            # Handle potential other cases or raise error
+            raise ValueError(f"Unexpected input shape {x.shape} for AdaLN")
+
+        # Apply normalization
+        x_norm = self.norm(x)
+
+        # Apply adaptive modulation
+        return x_norm * (1 + scale) + shift
+
+
+class TransformerBlock(nn.Module):
+    """
+    A Transformer block with Adaptive Layer Normalization.
+    Uses batch_first=True convention: (Batch, Sequence, Feature)
+    """
+
+    def __init__(
+        self, embed_dim, num_heads, cond_embed_dim, mlp_ratio=4.0, dropout=0.0
+    ):
+        super().__init__()
+        self.embed_dim = embed_dim
+        self.num_heads = num_heads
+        self.cond_embed_dim = cond_embed_dim
+
+        # Adaptive Layer Norm + Multi-Head Self-Attention
+        self.norm1 = AdaLN(embed_dim, cond_embed_dim)
+        self.attn = nn.MultiheadAttention(
+            embed_dim, num_heads, dropout=dropout, batch_first=True
+        )
+
+        # Adaptive Layer Norm + MLP
+        self.norm2 = AdaLN(embed_dim, cond_embed_dim)
+        mlp_hidden_dim = int(embed_dim * mlp_ratio)
+        self.mlp = nn.Sequential(
+            nn.Linear(embed_dim, mlp_hidden_dim),
+            nn.SiLU(),  # Changed from GELU to SiLU to match UNet style
+            nn.Dropout(dropout),
+            nn.Linear(mlp_hidden_dim, embed_dim),
+            nn.Dropout(dropout),
+        )
+        self.initialize()
+
+    def initialize(self):
+        # Initialize MLP layers
+        for layer in self.mlp:
+            if isinstance(layer, nn.Linear):
+                init.xavier_uniform_(layer.weight)
+                init.zeros_(layer.bias)
+
+    def forward(self, x, cond_embedding):
+        # x: (B, N, D)
+        # cond_embedding: (B, cond_embed_dim)
+
+        # Self-Attention part
+        residual = x
+        x_norm = self.norm1(x, cond_embedding)  # shape: (B, H*W, C)
+        attn_output, _ = self.attn(x_norm, x_norm, x_norm)
+        x = residual + attn_output
+
+        # MLP part
+        residual = x
+        x_norm = self.norm2(x, cond_embedding)
+        mlp_output = self.mlp(x_norm)
+        x = residual + mlp_output
+
+        return x

@@ -129,7 +129,19 @@ def parse_args():
     )
     parser.add_argument("--unet_dropout", type=float, default=0.0, help="unet dropout")
     parser.add_argument(
-        "--adagn_resblock", type=str2bool, default=False, help="resnet architecture"
+        "--use_adagn_resblock", type=str2bool, default=False, help="adagn resnet"
+    )
+    parser.add_argument(
+        "--use_transformer_bottleneck",
+        type=str2bool,
+        default=False,
+        help="transformer bottleneck",
+    )
+    parser.add_argument(
+        "--transformer_depth", type=int, default=1, help="transformer depth"
+    )
+    parser.add_argument(
+        "--transformer_num_heads", type=int, default=8, help="transformer num heads"
     )
 
     # ddpm
@@ -251,7 +263,10 @@ def parse_args():
 
     # inference
     parser.add_argument(
-        "--inference_samples", type=int, default=5000, help="Total number of images generated in inference.py"
+        "--inference_samples",
+        type=int,
+        default=5000,
+        help="Total number of images generated in inference.py",
     )
 
     # distributed training settings (used in DDP or multi-GPU)
@@ -401,7 +416,13 @@ def main():
         dropout=args.unet_dropout,
         conditional=args.use_cfg,
         c_dim=args.unet_ch,
-        adagn_resblock=args.adagn_resblock,
+        # --- New arguments for AdaGN ResNet ---
+        use_adagn_resblock=args.use_adagn_resblock,
+        # --- New arguments for Transformer Bottleneck ---
+        use_transformer_bottleneck=args.use_transformer_bottleneck,
+        transformer_depth=args.transformer_depth,
+        transformer_num_heads=args.transformer_num_heads,
+        # --------------------------------------------
     )
     # preint number of parameters
     num_params = sum(p.numel() for p in unet.parameters() if p.requires_grad)
