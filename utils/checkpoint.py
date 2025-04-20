@@ -27,10 +27,9 @@ def load_checkpoint(
     if class_embedder is not None and "class_embedder_state_dict" in checkpoint:
         print("loading class_embedder")
         class_embedder.load_state_dict(checkpoint["class_embedder_state_dict"])
-    
+
     return checkpoint
-    
-        
+
 
 def save_checkpoint(
     unet,
@@ -72,9 +71,6 @@ def save_checkpoint(
     # Save checkpoint
     torch.save(checkpoint, checkpoint_path)
     print(f"Checkpoint saved at {checkpoint_path}")
-    
-    # Manage checkpoint history
-    manage_checkpoints(save_dir, keep_last_n=10)
 
     # Save the last_model，and upload to WandB
     if keep_last_model:

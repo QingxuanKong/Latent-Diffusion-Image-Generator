@@ -734,8 +734,10 @@ def main():
                 if is_primary(args) and not args.DEBUG:
                     wandb_logger.log(
                         {
-                            "loss": loss_m.avg,
-                        }
+                            "train/loss": loss_m.avg,
+                            "train/learning_rate": optimizer.param_groups[0]["lr"],
+                        },
+                        step=epoch * num_update_steps_per_epoch + step,
                     )
 
         # -------------------------------------------
@@ -781,7 +783,7 @@ def main():
 
         # Send to wandb
         if is_primary(args) and not args.DEBUG:
-            wandb_logger.log({"gen_images": wandb.Image(grid_image)})
+            wandb_logger.log({"gen_images": wandb.Image(grid_image)}, step=epoch)
 
         # -------------------------------------------
         # -----------FID / IS Evaluation(Optional)-----------
@@ -879,11 +881,13 @@ def main():
             if is_primary(args) and not args.DEBUG:
                 wandb_logger.log(
                     {
-                        "fid": fid_val,
-                        "is": is_mean,
-                        "best_fid": args.best_fid,
-                        "best_is": args.best_is,
-                    }
+                        "eval/fid": fid_val,
+                        "eval/is_mean": is_mean,
+                        "eval/is_std": is_std,
+                        "eval/best_fid": args.best_fid,
+                        "eval/best_is": args.best_is,
+                    },
+                    step=epoch,
                 )
 
         # save checkpoint
@@ -902,6 +906,12 @@ def main():
                 if_best_fid=if_best_fid,
                 if_best_is=if_best_is,
             )
+
+    if is_primary(args) and not args.DEBUG:
+        wandb_logger.finish()
+        logger.info("WandB run finished.")
+
+    logger.info("Training finished.")
 
 
 if __name__ == "__main__":
