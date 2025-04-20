@@ -13,6 +13,7 @@ dataset: imagenet100
 subset: 1
 image_size: 64
 num_classes: 100
+output_dir: experiments
 
 # training
 batch_size: 32
@@ -60,17 +61,19 @@ variance_type: fixed_small
 predictor_type: epsilon
 
 #latent
-latent_ddpm: True
+latent_ddpm: False
 
 # cfg
-use_cfg: False
+use_cfg: True
 cfg_guidance_scale: 3.0
 cond_drop_rate: 0.1
 
 # ddim
-use_ddim: True
+use_ddim: False
 
 #evaluation during training
 eval_during_train: True
 eval_every_n_epoch: 1 # it takes 10 min to generate 500 images for evaluation each time
+eval_samples: 500 # 500
+eval_classes: 50 # 50
 

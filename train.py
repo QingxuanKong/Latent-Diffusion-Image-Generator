@@ -38,6 +38,12 @@ logger = get_logger(__name__)
 def parse_args():
     parser = argparse.ArgumentParser(description="Train a model.")
 
+    parser.add_argument(
+        "--DEBUG",
+        type=str2bool,
+        default=False,
+    )
+
     # config file
     parser.add_argument(
         "--config",
@@ -71,6 +77,9 @@ def parse_args():
     parser.add_argument("--image_size", type=int, default=128, help="image size")
     parser.add_argument(
         "--num_classes", type=int, default=100, help="number of classes in dataset"
+    )
+    parser.add_argument(
+        "--output_dir", type=str, default="experiments",
     )
 
     # training
@@ -204,6 +213,9 @@ def parse_args():
     )
     parser.add_argument(
         "--eval_batch_size", type=int, default=50, help="batch size for evaluation"
+    )
+    parser.add_argument(
+        "--eval_classes", type=int, default=50, help="batch size for evaluation"
     )
 
     # distributed training settings (used in DDP or multi-GPU)
