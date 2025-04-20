@@ -102,6 +102,45 @@ def parse_args():
         help="mixed precision",
     )
 
+    # log
+    parser.add_argument("--DEBUG", type=str2bool, default=False, help="debug_mode")
+    parser.add_argument("--wandb_key", type=str, default=None, help="wandb_key")
+    parser.add_argument("--project_name", type=str, default=None, help="project_name")
+    parser.add_argument("--run_name", type=str, default=None, help="run_name")
+    parser.add_argument(
+        "--output_dir", type=str, default="experiments", help="output folder"
+    )
+
+    # unet
+    parser.add_argument(
+        "--unet_in_size", type=int, default=128, help="unet input image size"
+    )
+    parser.add_argument(
+        "--unet_in_ch", type=int, default=3, help="unet input channel size"
+    )
+    parser.add_argument("--unet_ch", type=int, default=128, help="unet channel size")
+    parser.add_argument(
+        "--unet_ch_mult",
+        type=int,
+        default=[1, 2, 2, 2],
+        nargs="+",
+        help="unet channel multiplier",
+    )
+    parser.add_argument(
+        "--unet_attn",
+        type=int,
+        default=[1, 2, 3],
+        nargs="+",
+        help="unet attantion stage index",
+    )
+    parser.add_argument(
+        "--unet_num_res_blocks", type=int, default=2, help="unet number of res blocks"
+    )
+    parser.add_argument("--unet_dropout", type=float, default=0.0, help="unet dropout")
+    parser.add_argument(
+        "--adagn_resblock", type=str2bool, default=False, help="resnet architecture"
+    )
+
     # ddpm
     parser.add_argument(
         "--num_train_timesteps", type=int, default=1000, help="ddpm training timesteps"
@@ -164,7 +203,9 @@ def parse_args():
 
     # resume
     parser.add_argument(
-        "--resume", type=str2bool, default=False,
+        "--resume",
+        type=str2bool,
+        default=False,
     )
     parser.add_argument(
         "--resume_checkpoint_path",
@@ -176,7 +217,6 @@ def parse_args():
         type=str,
         default="none",
     )
-    
 
     # checkpoint path for inference
     parser.add_argument(
@@ -258,12 +298,11 @@ def main():
     # parse arguments
     args = parse_args()
 
-    print("[DEBUG] args =")
     for k, v in vars(args).items():
         print(f"  {k}: {v} (type: {type(v)})")
 
     print(f"[DEBUG] use_ddim: {args.use_ddim}, latent_ddpm: {args.latent_ddpm}")
-    
+
     # seed everything
     seed_everything(args.seed)
 
@@ -303,7 +342,6 @@ def main():
         ]
     )
     # TOOD: use image folder for your train dataset
-    print(f"Data directory absolute path: {os.path.abspath(args.data_dir)}")
     train_dataset = datasets.ImageFolder(args.data_dir, transform=transform)
     subset_size = int(len(train_dataset) * args.subset)
     train_dataset = torch.utils.data.Subset(train_dataset, range(subset_size))
@@ -367,6 +405,7 @@ def main():
         dropout=args.unet_dropout,
         conditional=args.use_cfg,
         c_dim=args.unet_ch,
+        adagn_resblock=args.adagn_resblock,
     )
     # preint number of parameters
     num_params = sum(p.numel() for p in unet.parameters() if p.requires_grad)
@@ -500,10 +539,12 @@ def main():
             )
             print(f"[INFO] Resumed from checkpoint: {checkpoint_path}")
         else:
-            print(f"[WARN] Resume flag is True but no checkpoint found at: {checkpoint_path}")
-        
-        if 'epoch' in checkpoint:
-            start_epoch = checkpoint['epoch'] + 1
+            print(
+                f"[WARN] Resume flag is True but no checkpoint found at: {checkpoint_path}"
+            )
+
+        if "epoch" in checkpoint:
+            start_epoch = checkpoint["epoch"] + 1
         else:
             start_epoch = 0
     # -------------------------------------------
@@ -673,12 +714,12 @@ def main():
                     f"Epoch {epoch+1}/{args.num_epochs}, Step {step}/{num_update_steps_per_epoch}, Loss {loss.item()} ({loss_m.avg})"
                 )
 
-                if is_primary(args) and wandb_logger:
+                if is_primary(args) and not args.DEBUG:
                     wandb_logger.log(
                         {
                             "loss": loss_m.avg,
                         },
-                        step=epoch
+                        step=epoch,
                     )
 
         # -------------------------------------------
@@ -723,8 +764,8 @@ def main():
             grid_image.paste(image, (x, y))
 
         # Send to wandb
-        if is_primary(args) and wandb_logger:
-            wandb_logger.log({"gen_images": wandb.Image(grid_image)}, step=epoch)
+        if is_primary(args) and not args.DEBUG:
+            wandb_logger.log({"gen_images": wandb.Image(grid_image)})
 
         # -------------------------------------------
         # -----------FID / IS Evaluation(Optional)-----------
@@ -799,11 +840,13 @@ def main():
 
             # log to wandb
             if wandb.run:
-                wandb.log({
-                    "FID_train_eval": fid_val,
-                    "IS_train_eval": is_mean,
-                    "epoch": epoch + 1
-                })
+                wandb.log(
+                    {
+                        "FID_train_eval": fid_val,
+                        "IS_train_eval": is_mean,
+                        "epoch": epoch + 1,
+                    }
+                )
 
             # Save the best fid/is model to wandb
             # Initialization fid and is
@@ -827,7 +870,7 @@ def main():
             )
 
             # log to wandb
-            if is_primary(args) and wandb_logger:
+            if is_primary(args) and not args.DEBUG:
                 wandb_logger.log(
                     {
                         "fid": fid_val,
