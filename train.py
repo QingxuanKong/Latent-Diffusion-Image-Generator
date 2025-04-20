@@ -153,6 +153,22 @@ def parse_args():
         help="use ddim sampler for inference",
     )
 
+    # resume
+    parser.add_argument(
+        "--resume", type=str2bool, default=False,
+    )
+    parser.add_argument(
+        "--resume_checkpoint_path",
+        type=str,
+        default="none",
+    )
+    parser.add_argument(
+        "--wandb_resume_id",
+        type=str,
+        default="none",
+    )
+    
+
     # checkpoint path for inference
     parser.add_argument(
         "--ckpt", type=str, default=None, help="checkpoint path for inference"

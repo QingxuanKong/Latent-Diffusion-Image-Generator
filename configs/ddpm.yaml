@@ -1,9 +1,15 @@
 seed: 42
 
-# dataset
+# Isla dataset
+# data_dir: /jet/home/ikong/hw5/data/
+# val_data_dir: /jet/home/ikong/hw5/data/imagenet100_128x128/validation
+
+# Ivy Dataset
+data_dir: /jet/home/ygao8/11785-hw5/data
+val_data_dir: /jet/home/ygao8/11785-hw5/data/imagenet100_128x128/validation
+
+# Dataset
 dataset: imagenet100
-data_dir: /jet/home/ikong/hw5/data/
-val_data_dir: /jet/home/ikong/hw5/data/imagenet100_128x128/validation
 subset: 1
 image_size: 64
 num_classes: 100
@@ -26,6 +32,14 @@ weight_decay: 1e-4
 wandb_key: dbcb5b22a7512074ad91148adc5794d1955289ad
 project_name: IDL-hw5-Ivy
 run_name: ddim-cfg-epoch5-Baseline
+resume_checkpoint_path: /jet/home/ygao8/11785-hw5/experiments/exp-4-ddpm-cfg-epoch60-Baseline/checkpoints/last_model.pth
+resume: True
+wandb_resume_id: 0n7x860l
+
+# # Bryan wandb
+# wandb_key: 2e236a3f67726acb3dd528ffcda489a4f92f5457
+# project_name: dl-hw5
+# run_name: ddpm-epoch5-Baseline-Bryan-run1
 
 # unet
 unet_in_size: 64
@@ -53,9 +67,7 @@ use_cfg: False
 cfg_guidance_scale: 3.0
 cond_drop_rate: 0.1
 
-#latent
-latent_ddpm: False
-
+# ddim
 use_ddim: True
 
 #evaluation during training
