@@ -3,7 +3,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import init
 
-from .unet_modules import TimeEmbedding, DownSample, UpSample, ResBlock
+from .unet_modules import TimeEmbedding, DownSample, UpSample, ResBlock, AdaGN_ResBlock
+
+# 🧠 2. Stronger Conditioning (for Class-Conditional Models)
+# ✅ a. Improve CrossAttnBlock
+# ✅ b. Use FiLM or AdaLN instead of Cross-Attn
+# 🧱 3. Architectural Upgrades to UNet
+# ✅ a. Add Transformer blocks in bottleneck
+# ✅ b. Add Attention in high-resolution layers
+# ✅ c. Add Time-Aware GroupNorm (TA-GN)
 
 
 class UNet(nn.Module):
@@ -19,6 +27,7 @@ class UNet(nn.Module):
         dropout=0.0,
         conditional=False,
         c_dim=None,
+        adagn_resblock=False,
     ):
         super().__init__()
         assert all([i < len(ch_mult) for i in attn]), "attn index out of bound"
@@ -26,6 +35,8 @@ class UNet(nn.Module):
         self.input_size = input_size
         self.input_ch = input_ch
         self.T = T
+
+        BlockClass = AdaGN_ResBlock if adagn_resblock else ResBlock
 
         tdim = ch * 4
         self.time_embedding = TimeEmbedding(T, ch, tdim)
@@ -38,7 +49,7 @@ class UNet(nn.Module):
             out_ch = ch * mult
             for _ in range(num_res_blocks):
                 self.downblocks.append(
-                    ResBlock(
+                    BlockClass(
                         in_ch=now_ch,
                         out_ch=out_ch,
                         tdim=tdim,
@@ -46,6 +57,7 @@ class UNet(nn.Module):
                         attn=(i in attn),
                         cross_attn=conditional and (i in attn),
                         cdim=c_dim,
+                        conditional=conditional,
                     )
                 )
                 now_ch = out_ch
@@ -56,7 +68,7 @@ class UNet(nn.Module):
 
         self.middleblocks = nn.ModuleList(
             [
-                ResBlock(
+                BlockClass(
                     now_ch,
                     now_ch,
                     tdim,
@@ -65,7 +77,7 @@ class UNet(nn.Module):
                     cross_attn=conditional,
                     cdim=c_dim,
                 ),
-                ResBlock(now_ch, now_ch, tdim, dropout, attn=False),
+                BlockClass(now_ch, now_ch, tdim, dropout, attn=False),
             ]
         )
 
@@ -74,7 +86,7 @@ class UNet(nn.Module):
             out_ch = ch * mult
             for _ in range(num_res_blocks + 1):
                 self.upblocks.append(
-                    ResBlock(
+                    BlockClass(
                         in_ch=chs.pop() + now_ch,
                         out_ch=out_ch,
                         tdim=tdim,
@@ -120,17 +132,17 @@ class UNet(nn.Module):
         # shape: (batch_size, ch, h, w)
         h = self.stem(x)
         hs = [h]
-        for layer in self.downblocks:
+        for i, layer in enumerate(self.downblocks):
             # shape: (batch_size, out_ch, h, w)
             h = layer(h, temb, c)
             hs.append(h)
         # Middle
-        for layer in self.middleblocks:
+        for i, layer in enumerate(self.middleblocks):
             # shape: (batch_size, now_channel, h, w)
             h = layer(h, temb, c)
         # Upsampling
-        for layer in self.upblocks:
-            if isinstance(layer, ResBlock):
+        for i, layer in enumerate(self.upblocks):
+            if isinstance(layer, (ResBlock, AdaGN_ResBlock)):
                 # shape: (batch_size, reverse downsampling + last upsampling, h, w)
                 h = torch.cat([h, hs.pop()], dim=1)
             h = layer(h, temb, c)

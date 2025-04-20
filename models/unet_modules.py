@@ -166,7 +166,15 @@ class CrossAttnBlock(nn.Module):
 
 class ResBlock(nn.Module):
     def __init__(
-        self, in_ch, out_ch, tdim, dropout, attn=False, cross_attn=False, cdim=None
+        self,
+        in_ch,
+        out_ch,
+        tdim,
+        dropout,
+        attn=False,
+        cross_attn=False,
+        cdim=None,
+        conditional=False,
     ):
         super().__init__()
         self.block1 = nn.Sequential(
@@ -217,4 +225,187 @@ class ResBlock(nn.Module):
             h = self.attn(h)
         if isinstance(self.cross_attn, CrossAttnBlock):
             h = self.cross_attn(h, cemb)
+        return h
+
+
+class AdaGN_ResBlock(nn.Module):
+    def __init__(
+        self,
+        in_ch,
+        out_ch,
+        tdim,
+        dropout,
+        attn=False,
+        cross_attn=False,
+        cdim=None,
+        conditional=False,
+    ):
+        super().__init__()
+        self.in_ch = in_ch
+        self.out_ch = out_ch
+        self.tdim = tdim  # Store tdim
+        self.cdim = cdim if conditional else None
+
+        # Block 1
+        self.norm1 = nn.GroupNorm(32, in_ch)
+        self.silu1 = nn.SiLU()
+        self.conv1 = nn.Conv2d(in_ch, out_ch, 3, stride=1, padding=1)
+
+        # Determine the embedding dimension for AdaGN projections
+        # If class conditioning is configured (cdim is not None), AdaGN will expect combined embedding.
+        self.ada_embed_dim = self.tdim
+        if conditional:
+            self.ada_embed_dim += self.cdim
+
+        # AdaGN Projection Layer for Block 1 (and 2)
+        # Uses the determined ada_embed_dim
+        self.adaGN_proj1 = nn.Sequential(
+            nn.SiLU(),
+            nn.Linear(
+                self.ada_embed_dim, 2 * in_ch
+            ),  # Output: scale and shift for out_ch channels
+        )
+        self.adaGN_proj2 = nn.Sequential(
+            nn.SiLU(),
+            nn.Linear(
+                self.ada_embed_dim, 2 * out_ch
+            ),  # Output: scale and shift for out_ch channels
+        )
+
+        # Block 2
+        self.norm2 = nn.GroupNorm(32, out_ch)
+        self.silu2 = nn.SiLU()
+        self.dropout = nn.Dropout(dropout)
+        self.conv2 = nn.Conv2d(out_ch, out_ch, 3, stride=1, padding=1)
+
+        # Shortcut connection
+        if in_ch != out_ch:
+            self.shortcut = nn.Conv2d(in_ch, out_ch, 1, stride=1, padding=0)
+        else:
+            self.shortcut = nn.Identity()
+
+        # Attention layers
+        if attn:
+            self.attn = AttnBlock(out_ch)
+        else:
+            self.attn = nn.Identity()
+
+        # Cross Attention - only instantiate if needed
+        if cross_attn:
+            if self.cdim is None:
+                raise ValueError("cdim must be provided if cross_attn is True")
+            self.cross_attn = CrossAttnBlock(out_ch, self.cdim)
+        else:
+            self.cross_attn = nn.Identity()  # Keep as identity otherwise
+
+        self.initialize()
+
+    def initialize(self):
+        # Initialize conv layers
+        for module in [self.conv1, self.conv2, self.shortcut]:
+            if isinstance(module, nn.Conv2d):
+                init.xavier_uniform_(module.weight)
+                init.zeros_(module.bias)
+
+        # Initialize AdaGN projections: zero out the final Linear layer
+        init.zeros_(self.adaGN_proj1[-1].weight)
+        init.zeros_(self.adaGN_proj1[-1].bias)
+        init.zeros_(self.adaGN_proj2[-1].weight)
+        init.zeros_(self.adaGN_proj2[-1].bias)
+
+        # Initialize attention projection layers
+        if isinstance(self.attn, AttnBlock):
+            # Add initialize method to AttnBlock if it doesn't have one
+            if hasattr(self.attn, "initialize") and callable(self.attn.initialize):
+                self.attn.initialize()
+        if isinstance(self.cross_attn, CrossAttnBlock):
+            # Add initialize method to CrossAttnBlock if it doesn't have one
+            if hasattr(self.cross_attn, "initialize") and callable(
+                self.cross_attn.initialize
+            ):
+                self.cross_attn.initialize()
+
+        # Zero-out the last conv layer in the residual block
+        init.zeros_(
+            self.conv2.weight
+        )  # Zero init often preferred for last layer in resblock
+        init.zeros_(self.conv2.bias)
+
+    def forward(self, x, temb, cemb=None):
+        # Input x: (B, C_in, H, W)
+        # Input temb: (B, tdim)
+        # Input cemb: (B, cdim) or None
+
+        # --- Shortcut ---
+        shortcut_output = self.shortcut(x)  # (B, C_out, H, W)
+
+        # --- Prepare Embedding for AdaGN ---
+        # Start with time embedding
+        combined_emb = temb
+
+        # If class conditioning is configured for the U-Net (cdim was passed to __init__)
+        # AND class embedding is actually provided in this forward pass, concatenate them.
+        if self.cdim is not None:
+            if cemb is None:
+                print(f"cdim: {self.cdim}, but cemb is None")
+                raise ValueError(
+                    f"ResBlock configured with cdim={self.cdim} but cemb is None in forward pass."
+                )
+
+            # Concatenate time and class embeddings
+            combined_emb = torch.cat([temb, cemb], dim=-1)
+            # Verify the dimension matches what adaGN_proj expects
+            if combined_emb.shape[1] != self.ada_embed_dim:
+                raise ValueError(
+                    f"Combined embedding dim {combined_emb.shape[1]} does not match expected ada_embed_dim {self.ada_embed_dim}"
+                )
+
+        # --- Block 1 ---
+        h = self.norm1(x)
+
+        # Project for scale and shift (Block 1)
+        ada_params1 = self.adaGN_proj1(combined_emb)  # (B, 2 * C_out)
+        scale1, shift1 = torch.chunk(ada_params1, 2, dim=1)  # (B, C_out), (B, C_out)
+
+        # Apply AdaGN 1
+        h = (
+            h * (1 + scale1[:, :, None, None]) + shift1[:, :, None, None]
+        )  # Modulate after norm
+
+        h = self.silu1(h)
+        h = self.conv1(h)  # (B, C_out, H, W)
+
+        # --- Block 2 ---
+        h = self.norm2(h)
+
+        # Project for scale and shift (Block 2)
+        ada_params2 = self.adaGN_proj2(combined_emb)  # (B, 2 * C_out)
+        scale2, shift2 = torch.chunk(ada_params2, 2, dim=1)  # (B, C_out), (B, C_out)
+
+        # Apply AdaGN 2
+        h = (
+            h * (1 + scale2[:, :, None, None]) + shift2[:, :, None, None]
+        )  # Modulate after norm
+
+        h = self.silu2(h)
+        h = self.dropout(h)
+        h = self.conv2(h)  # (B, C_out, H, W)
+
+        # --- Final Addition + Attention ---
+        h = h + shortcut_output  # Add shortcut
+
+        # Apply self-attention if applicable
+        if isinstance(self.attn, AttnBlock):
+            h = self.attn(h)
+
+        # Apply cross-attention if applicable (only if self.use_cross_attn was True)
+        if isinstance(self.cross_attn, CrossAttnBlock):
+            if (
+                cemb is None
+            ):  # Double check, though checked earlier when creating combined_emb
+                raise ValueError(
+                    "Class embedding `cemb` cannot be None when cross_attn is enabled."
+                )
+            h = self.cross_attn(h, cemb)
+
         return h
