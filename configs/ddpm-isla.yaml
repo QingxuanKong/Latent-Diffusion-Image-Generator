@@ -42,10 +42,24 @@ unet_ch_mult: [1, 2, 2, 4]
 unet_attn: [2, 3]
 unet_num_res_blocks: 2
 unet_dropout: 0.0
-use_adagn_resblock: False
-use_transformer_bottleneck: True
+use_adagn_resblock: True
+use_transformer_bottleneck: False
 transformer_depth: 1
 transformer_num_heads: 8
+
+# # vae unet
+# unet_in_size: 64 / 4 = 16
+# unet_in_ch: 4
+# unet_ch: 128
+# unet_ch_mult: [1, 2, 2, 4]
+# unet_attn: [1, 2]
+# unet_num_res_blocks: 2
+# unet_dropout: 0.0
+# use_adagn_resblock: False
+# use_transformer_bottleneck: True
+# transformer_depth: 1
+# transformer_num_heads: 8
+# 0.1845 or 0.18215
 
 # ddpm
 num_train_timesteps: 1000

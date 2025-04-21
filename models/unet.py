@@ -12,14 +12,6 @@ from .unet_modules import (
     TransformerBlock,
 )
 
-# 🧠 2. Stronger Conditioning (for Class-Conditional Models)
-# ✅ a. Improve CrossAttnBlock
-# ✅ b. Use FiLM or AdaLN instead of Cross-Attn
-# 🧱 3. Architectural Upgrades to UNet
-# ✅ a. Add Transformer blocks in bottleneck
-# ✅ b. Add Attention in high-resolution layers
-# ✅ c. Add Time-Aware GroupNorm (TA-GN)
-
 
 class UNet(nn.Module):
     def __init__(

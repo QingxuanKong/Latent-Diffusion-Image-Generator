@@ -562,8 +562,21 @@ def main():
             start_epoch = checkpoint["epoch"] + 1
         else:
             start_epoch = 0
+
+        if "best_fid" in checkpoint:
+            args.best_fid = checkpoint["best_fid"]
+        else:
+            args.best_fid = float("inf")
+
+        if "best_is" in checkpoint:
+            args.best_is = checkpoint["best_is"]
+        else:
+            args.best_is = float("-inf")
+
     else:
         start_epoch = 0
+        args.best_fid = float("inf")
+        args.best_is = float("-inf")
 
     # -------------------------------------------
     # ----------------dump config----------------
@@ -738,7 +751,6 @@ def main():
                             "train/loss": loss_m.avg,
                             "train/learning_rate": optimizer.param_groups[0]["lr"],
                         },
-                        step=epoch * num_update_steps_per_epoch + step,
                     )
 
         # -------------------------------------------
@@ -784,7 +796,7 @@ def main():
 
         # Send to wandb
         if is_primary(args) and not args.DEBUG:
-            wandb_logger.log({"gen_images": wandb.Image(grid_image)}, step=epoch)
+            wandb_logger.log({"gen_images": wandb.Image(grid_image)})
 
         # -------------------------------------------
         # -----------FID / IS Evaluation(Optional)-----------
@@ -857,12 +869,6 @@ def main():
                 logger=logger,
             )
 
-            # Save the best fid/is model to wandb
-            # Initialization fid and is
-            if not hasattr(args, "best_fid") or not hasattr(args, "best_is"):
-                args.best_fid = float("inf")
-                args.best_is = float("-inf")
-
             # compare and save best FID model
             if fid_val < args.best_fid:
                 args.best_fid = fid_val
@@ -888,7 +894,6 @@ def main():
                         "eval/best_fid": args.best_fid,
                         "eval/best_is": args.best_is,
                     },
-                    step=epoch,
                 )
 
         # save checkpoint
