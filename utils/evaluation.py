@@ -5,14 +5,15 @@ from torchvision import transforms
 import torch
 from tqdm import tqdm
 
+
 @torch.no_grad()
 def evaluate_fid_is(
-    generated_images,             # tensor of shape [N, C, H, W]
-    val_loader,                   # dataloader yielding real images
+    generated_images,  # tensor of shape [N, C, H, W]
+    val_loader,  # dataloader yielding real images
     device,
     total_images=5000,
     batch_size=50,
-    logger=None
+    logger=None,
 ):
     """
     Evaluate FID and Inception Score on given generated images.
@@ -49,6 +50,8 @@ def evaluate_fid_is(
 
     fid_value = fid.compute().item()
     is_mean, is_std = is_score.compute()
+    is_mean = is_mean.item()
+    is_std = is_std.item()
 
     if logger:
         logger.info(f"[Eval] FID: {fid_value:.2f}")

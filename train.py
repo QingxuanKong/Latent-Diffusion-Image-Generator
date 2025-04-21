@@ -102,6 +102,23 @@ def parse_args():
         "--output_dir", type=str, default="experiments", help="output folder"
     )
 
+    # resume
+    parser.add_argument(
+        "--resume",
+        type=str2bool,
+        default=False,
+    )
+    parser.add_argument(
+        "--resume_checkpoint_path",
+        type=str,
+        default="none",
+    )
+    parser.add_argument(
+        "--wandb_resume_id",
+        type=str,
+        default="none",
+    )
+
     # unet
     parser.add_argument(
         "--unet_in_size", type=int, default=128, help="unet input image size"
@@ -202,23 +219,6 @@ def parse_args():
         type=str2bool,
         default=False,
         help="use ddim sampler for inference",
-    )
-
-    # resume
-    parser.add_argument(
-        "--resume",
-        type=str2bool,
-        default=False,
-    )
-    parser.add_argument(
-        "--resume_checkpoint_path",
-        type=str,
-        default="none",
-    )
-    parser.add_argument(
-        "--wandb_resume_id",
-        type=str,
-        default="none",
     )
 
     # checkpoint path for inference
@@ -584,6 +584,7 @@ def main():
     # dump config file
     if is_primary(args):
         experiment_config = vars(args)
+        print(f"[INFO] Experiment config: {experiment_config}")
         with open(os.path.join(output_dir, "config.yaml"), "w", encoding="utf-8") as f:
             # Use the round_trip_dump method to preserve the order and style
             file_yaml = yaml.YAML()
@@ -886,6 +887,7 @@ def main():
 
             # log to wandb
             if is_primary(args) and not args.DEBUG:
+                print("save fid/is to wandb")
                 wandb_logger.log(
                     {
                         "eval/fid": fid_val,

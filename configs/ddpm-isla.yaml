@@ -13,7 +13,7 @@ num_classes: 100
 # training
 batch_size: 32
 num_workers: 4
-num_epochs: 5
+num_epochs: 10
 
 # optimizer
 learning_rate: 2e-4
@@ -22,7 +22,12 @@ weight_decay: 1e-4
 # Isla wandb
 wandb_key: b6dff554fc854aea97af8dccb735c241a19a6615
 project_name: dl-hw5
-run_name: ddim-cfg-adagn
+run_name: ddim-cfg
+
+# resume wandb
+resume: True
+resume_checkpoint_path: "/root/hw5/experiments/exp-11-ddim-cfg/checkpoints/checkpoint_epoch_4.pth"
+wandb_resume_id: "fzdz9ukx"
 
 # # Ivy wandb
 # wandb_key: dbcb5b22a7512074ad91148adc5794d1955289ad
@@ -42,7 +47,7 @@ unet_ch_mult: [1, 2, 2, 4]
 unet_attn: [2, 3]
 unet_num_res_blocks: 2
 unet_dropout: 0.0
-use_adagn_resblock: True
+use_adagn_resblock: False
 use_transformer_bottleneck: False
 transformer_depth: 1
 transformer_num_heads: 8
@@ -83,7 +88,7 @@ use_ddim: True
 
 # checkpoint
 keep_last_n: 1 # including the last one
-keep_last_model: False
+keep_last_model: True
 keep_best_model: False
 
 #evaluation during training

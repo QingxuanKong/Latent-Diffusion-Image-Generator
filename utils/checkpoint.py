@@ -13,7 +13,7 @@ def load_checkpoint(
 ):
 
     print("loading checkpoint")
-    checkpoint = torch.load(checkpoint_path)
+    checkpoint = torch.load(checkpoint_path, weights_only=False)
 
     print("loading unet")
     unet.load_state_dict(checkpoint["unet_state_dict"])
