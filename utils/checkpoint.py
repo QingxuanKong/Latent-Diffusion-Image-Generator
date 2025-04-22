@@ -1,6 +1,7 @@
 import torch
 import os
 import wandb
+import shutil
 
 
 def load_checkpoint(
@@ -12,24 +13,42 @@ def load_checkpoint(
     checkpoint_path="checkpoints/checkpoint.pth",
 ):
 
-    print("loading checkpoint")
-    checkpoint = torch.load(checkpoint_path, weights_only=False)
+    print("[INFO] Loading checkpoint")
+    if wandb.run:
+        print("wandb run")
+        artifact = wandb.run.use_artifact(
+            f"{checkpoint_path}-last_model:latest", type="model"
+        )
+        artifact_dir = artifact.download()
+        checkpoint_path = os.path.join(artifact_dir, "last_model.pth")
+        checkpoint = torch.load(checkpoint_path, weights_only=False)
+        shutil.rmtree(artifact_dir)
+    else:
+        print("wandb not run")
 
-    print("loading unet")
+    if os.path.exists(checkpoint_path):
+        print(f"[INFO] Resumed from checkpoint: {checkpoint_path}")
+    else:
+        print(
+            f"[WARN] Resume flag is True but no checkpoint found at: {checkpoint_path}"
+        )
+
+    print("[INFO] Loading unet")
     unet.load_state_dict(checkpoint["unet_state_dict"])
-    print("loading scheduler")
+    
+    print("[INFO] Loading scheduler")
     scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
 
     if vae is not None and "vae_state_dict" in checkpoint:
-        print("loading vae")
+        print("[INFO] Loading vae")
         vae.load_state_dict(checkpoint["vae_state_dict"])
 
     if class_embedder is not None and "class_embedder_state_dict" in checkpoint:
-        print("loading class embedder")
+        print("[INFO] Loading class embedder")
         class_embedder.load_state_dict(checkpoint["class_embedder_state_dict"])
 
     if optimizer is not None and "optimizer_state_dict" in checkpoint:
-        print("loading optimizer")
+        print("[INFO] Loading optimizer")
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
     return checkpoint
@@ -82,46 +101,48 @@ def save_checkpoint(
 
     # Save checkpoint
     torch.save(checkpoint, checkpoint_path)
-    print(f"Checkpoint saved at {checkpoint_path}")
+    print(f"[INFO] Checkpoint saved at {checkpoint_path}")
 
     # Save the last_model，and upload to WandB
     if keep_last_model:
         last_model_path = os.path.join(save_dir, "last_model.pth")
         torch.save(checkpoint, last_model_path)
-        print(f"Last model saved at {last_model_path}")
+        print(f"[INFO] Last model saved at {last_model_path}")
 
         if wandb.run:
-            artifact = wandb.Artifact("last_model", type="model")
+            artifact = wandb.Artifact(f"{wandb.run.id}-last_model", type="model")
             artifact.add_file(last_model_path)
             wandb.log_artifact(artifact, aliases=["latest"])
-            print("Uploaded last model to WandB with alias 'latest'")
+            print("[INFO] Uploaded last model to WandB with alias 'latest'")
 
     # Manage checkpoint history
-    print(f"Managing checkpoint history (only keep {keep_last_n} last checkpoints)")
+    print(
+        f"[INFO] Managing checkpoint history (only keep {keep_last_n} last checkpoints)"
+    )
     manage_checkpoints(save_dir, keep_last_n=keep_last_n)
 
     # Save the best fid model and upload to WandB
     if keep_best_model and if_best_fid:
         best_fid_model_path = os.path.join(save_dir, "best_fid_model.pth")
         torch.save(checkpoint, best_fid_model_path)
-        print(f"Best FID model saved at {best_fid_model_path}")
+        print(f"[INFO] Best FID model saved at {best_fid_model_path}")
 
         if wandb.run:
-            artifact = wandb.Artifact("best_fid_model", type="model")
+            artifact = wandb.Artifact(f"{wandb.run.id}-best_fid_model", type="model")
             artifact.add_file(best_fid_model_path)
             wandb.log_artifact(artifact, aliases=["best-fid"])
-            print("Uploaded best FID model to WandB with alias 'best-fid'")
+            print("[INFO] Uploaded best FID model to WandB with alias 'best-fid'")
 
     if keep_best_model and if_best_is:
         best_is_model_path = os.path.join(save_dir, "best_is_model.pth")
         torch.save(checkpoint, best_is_model_path)
-        print(f"Best IS model saved at {best_is_model_path}")
+        print(f"[INFO] Best IS model saved at {best_is_model_path}")
 
         if wandb.run:
-            artifact = wandb.Artifact("best_is_model", type="model")
+            artifact = wandb.Artifact(f"{wandb.run.id}-best_is_model", type="model")
             artifact.add_file(best_is_model_path)
             wandb.log_artifact(artifact, aliases=["best-is"])
-            print("Uploaded best IS model to WandB with alias 'best-is'")
+            print("[INFO] Uploaded best IS model to WandB with alias 'best-is'")
 
 
 def manage_checkpoints(save_dir, keep_last_n=10):

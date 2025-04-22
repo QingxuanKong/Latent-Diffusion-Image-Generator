@@ -104,7 +104,7 @@ class UNet(nn.Module):
                 ]
             )
             print(
-                f"Using Transformer bottleneck with {transformer_depth} layers, {transformer_num_heads} heads."
+                f"[INFO] Using Transformer bottleneck with {transformer_depth} layers, {transformer_num_heads} heads."
             )
         else:
             self.middleblocks = nn.ModuleList(
@@ -131,7 +131,7 @@ class UNet(nn.Module):
                     ),
                 ]
             )
-            print("Using ResNet/Attention bottleneck.")
+            print("[INFO] Using ResNet/Attention bottleneck.")
         # -------------------------------------------------------
 
         self.upblocks = nn.ModuleList()

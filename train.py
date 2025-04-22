@@ -80,6 +80,8 @@ def parse_args():
     parser.add_argument("--num_epochs", type=int, default=10)
 
     # optimizer
+    parser.add_argument("--scheduler", type=str, default="cosine", help="scheduler")
+    parser.add_argument("--max_epochs", type=int, default=50)
     parser.add_argument(
         "--learning_rate", type=float, default=1e-4, help="learning rate"
     )
@@ -95,6 +97,9 @@ def parse_args():
 
     # log
     parser.add_argument("--DEBUG", type=str2bool, default=False, help="debug_mode")
+    parser.add_argument(
+        "--wandb_username", type=str, default=None, help="wandb_username"
+    )
     parser.add_argument("--wandb_key", type=str, default=None, help="wandb_key")
     parser.add_argument("--project_name", type=str, default=None, help="project_name")
     parser.add_argument("--run_name", type=str, default=None, help="run_name")
@@ -109,12 +114,12 @@ def parse_args():
         default=False,
     )
     parser.add_argument(
-        "--resume_checkpoint_path",
+        "--wandb_resume_id",
         type=str,
         default="none",
     )
     parser.add_argument(
-        "--wandb_resume_id",
+        "--resume_checkpoint_path",
         type=str,
         default="none",
     )
@@ -310,7 +315,7 @@ def main():
     args = parse_args()
 
     for k, v in vars(args).items():
-        print(f"  {k}: {v} (type: {type(v)})")
+        print(f"[INFO] {k}: {v} (type: {type(v)})")
 
     # seed everything
     seed_everything(args.seed)
@@ -459,7 +464,7 @@ def main():
     # NOTE: this is for latent DDPM
     vae = None
     if args.latent_ddpm:
-        vae = VAE()
+        vae = VAE(**args.vae_config)
         # NOTE: do not change this
         vae.init_from_ckpt("pretrained/model.ckpt")
         vae.eval()
@@ -489,17 +494,18 @@ def main():
     optimizer = torch.optim.AdamW(
         unet.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
     )
-    # TODO: setup scheduler
-    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=50, eta_min=1e-6
-    )  # todo: change tmax, eta_min
-
-    # todo: check this
-    scaler = torch.cuda.amp.GradScaler(enabled=args.mixed_precision in ["fp16", "bf16"])
 
     # max train steps
     num_update_steps_per_epoch = len(train_loader)
     args.max_train_steps = args.num_epochs * num_update_steps_per_epoch
+
+    # TODO: setup scheduler
+    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=args.max_epochs * num_update_steps_per_epoch, eta_min=1e-6
+    )
+
+    # todo: check this
+    scaler = torch.cuda.amp.GradScaler(enabled=args.mixed_precision in ["fp16", "bf16"])
 
     # -------------------------------------------
     # -----set up distributed training-----------
@@ -538,53 +544,12 @@ def main():
         class_embedder=class_embedder_wo_ddp,
     )
 
-    # ----------------------------------------------------
-    # -------- Resume training from checkpoint if needed --------
-    # ----------------------------------------------------
-    if args.resume:
-        checkpoint_path = args.resume_checkpoint_path
-        if os.path.exists(checkpoint_path):
-            checkpoint = load_checkpoint(
-                unet_wo_ddp,
-                scheduler_wo_ddp,
-                vae=vae_wo_ddp,
-                class_embedder=class_embedder_wo_ddp,
-                optimizer=optimizer,
-                checkpoint_path=checkpoint_path,
-            )
-            print(f"[INFO] Resumed from checkpoint: {checkpoint_path}")
-        else:
-            print(
-                f"[WARN] Resume flag is True but no checkpoint found at: {checkpoint_path}"
-            )
-
-        if "epoch" in checkpoint:
-            start_epoch = checkpoint["epoch"] + 1
-        else:
-            start_epoch = 0
-
-        if "best_fid" in checkpoint:
-            args.best_fid = checkpoint["best_fid"]
-        else:
-            args.best_fid = float("inf")
-
-        if "best_is" in checkpoint:
-            args.best_is = checkpoint["best_is"]
-        else:
-            args.best_is = float("-inf")
-
-    else:
-        start_epoch = 0
-        args.best_fid = float("inf")
-        args.best_is = float("-inf")
-
     # -------------------------------------------
     # ----------------dump config----------------
     # -------------------------------------------
     # dump config file
     if is_primary(args):
         experiment_config = vars(args)
-        print(f"[INFO] Experiment config: {experiment_config}")
         with open(os.path.join(output_dir, "config.yaml"), "w", encoding="utf-8") as f:
             # Use the round_trip_dump method to preserve the order and style
             file_yaml = yaml.YAML()
@@ -611,6 +576,45 @@ def main():
             wandb_kwargs["resume"] = None  # fresh run
 
         wandb_logger = wandb.init(**wandb_kwargs)
+
+    # ----------------------------------------------------
+    # -------- Resume training from checkpoint if needed --------
+    # ----------------------------------------------------
+    if args.resume:
+        if args.resume_checkpoint_path != "none":
+            checkpoint_path = args.resume_checkpoint_path
+        else:
+            checkpoint_path = (
+                f"{args.wandb_username}/{args.project_name}/{args.wandb_resume_id}"
+            )
+        checkpoint = load_checkpoint(
+            unet_wo_ddp,
+            scheduler_wo_ddp,
+            vae=vae_wo_ddp,
+            class_embedder=class_embedder_wo_ddp,
+            optimizer=optimizer,
+            checkpoint_path=checkpoint_path,
+        )
+
+        if "epoch" in checkpoint:
+            start_epoch = checkpoint["epoch"] + 1
+        else:
+            start_epoch = 0
+
+        if "best_fid" in checkpoint:
+            args.best_fid = checkpoint["best_fid"]
+        else:
+            args.best_fid = float("inf")
+
+        if "best_is" in checkpoint:
+            args.best_is = checkpoint["best_is"]
+        else:
+            args.best_is = float("-inf")
+
+    else:
+        start_epoch = 0
+        args.best_fid = float("inf")
+        args.best_is = float("-inf")
 
     # Start training
     if is_primary(args):
@@ -675,7 +679,7 @@ def main():
                     ):
                         images = vae.encode(images).sample()
                 # NOTE: do not change this line, this is to ensure the latent has unit std
-                images = images * 0.1845
+                images = images * 0.18215  # 0.1845
 
             # TODO: zero grad optimizer
             optimizer.zero_grad()
@@ -708,11 +712,11 @@ def main():
                 if args.prediction_type == "epsilon":
                     target = noise
 
-                    # TODO: calculate loss
-                    loss = F.mse_loss(model_pred, target)
+                # TODO: calculate loss
+                loss = F.mse_loss(model_pred, target)
 
-                    # record loss
-                    loss_m.update(loss.item())
+            # record loss
+            loss_m.update(loss.item())
 
             # backward and step
             # todo : check gradient_accumulation_steps
@@ -743,7 +747,7 @@ def main():
             # logger
             if step % 100 == 0 and is_primary(args):
                 logger.info(
-                    f"Epoch {epoch+1}/{args.num_epochs}, Step {step}/{num_update_steps_per_epoch}, Loss {loss.item()} ({loss_m.avg})"
+                    f"Epoch {epoch+1}/{args.num_epochs}, Step {step}/{num_update_steps_per_epoch}, Loss {loss.item()} ({loss_m.avg}), LR {optimizer.param_groups[0]['lr']}"
                 )
 
                 if is_primary(args) and not args.DEBUG:
@@ -887,7 +891,7 @@ def main():
 
             # log to wandb
             if is_primary(args) and not args.DEBUG:
-                print("save fid/is to wandb")
+                print("[INFO] Save fid/is to wandb")
                 wandb_logger.log(
                     {
                         "eval/fid": fid_val,
@@ -899,23 +903,24 @@ def main():
                 )
 
         # save checkpoint
-        if is_primary(args):
-            save_checkpoint(
-                unet_wo_ddp,
-                scheduler_wo_ddp,
-                vae_wo_ddp,
-                class_embedder,
-                optimizer,
-                epoch,
-                save_dir=save_dir,
-                keep_last_n=args.keep_last_n,
-                keep_last_model=args.keep_last_model,
-                keep_best_model=args.keep_best_model,
-                if_best_fid=if_best_fid,
-                if_best_is=if_best_is,
-                best_fid=float("inf") if not args.best_fid else args.best_fid,
-                best_is=float("-inf") if not args.best_is else args.best_is,
-            )
+        save_checkpoint(
+            unet_wo_ddp,
+            scheduler_wo_ddp,
+            vae_wo_ddp,
+            class_embedder,
+            optimizer,
+            epoch,
+            save_dir=save_dir,
+            keep_last_n=args.keep_last_n,
+            keep_last_model=(
+                args.keep_last_model if (epoch + 1) % 10 == 0 else False
+            ),
+            keep_best_model=args.keep_best_model,
+            if_best_fid=if_best_fid,
+            if_best_is=if_best_is,
+            best_fid=float("inf") if not args.best_fid else args.best_fid,
+            best_is=float("-inf") if not args.best_is else args.best_is,
+        )
 
     if is_primary(args) and not args.DEBUG:
         wandb_logger.finish()
