@@ -10,6 +10,7 @@ def load_checkpoint(
     vae=None,
     class_embedder=None,
     optimizer=None,
+    lr_scheduler=None,
     checkpoint_path="checkpoints/checkpoint.pth",
 ):
 
@@ -50,6 +51,10 @@ def load_checkpoint(
         print("[INFO] Loading optimizer")
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
+    if lr_scheduler is not None and "lr_scheduler_state_dict" in checkpoint:
+        print("[INFO] Loading lr scheduler")
+        lr_scheduler.load_state_dict(checkpoint["lr_scheduler_state_dict"])
+
     return checkpoint
 
 
@@ -59,6 +64,7 @@ def save_checkpoint(
     vae=None,
     class_embedder=None,
     optimizer=None,
+    lr_scheduler=None,
     epoch=None,
     save_dir="checkpoints",
     keep_last_n=10,
@@ -88,6 +94,9 @@ def save_checkpoint(
 
     if optimizer is not None:
         checkpoint["optimizer_state_dict"] = optimizer.state_dict()
+
+    if lr_scheduler is not None:
+        checkpoint["lr_scheduler_state_dict"] = lr_scheduler.state_dict()
 
     if epoch is not None:
         checkpoint["epoch"] = epoch

@@ -517,6 +517,7 @@ def main():
         optimizer,
         schedulers=[warmup_scheduler, cosine_scheduler],
         milestones=[warmup_steps],  # when to switch to cosine
+        last_epoch=-1
     )
 
     # todo: check this
@@ -924,6 +925,7 @@ def main():
             vae_wo_ddp,
             class_embedder,
             optimizer,
+            lr_scheduler,
             epoch,
             save_dir=save_dir,
             keep_last_n=args.keep_last_n,
