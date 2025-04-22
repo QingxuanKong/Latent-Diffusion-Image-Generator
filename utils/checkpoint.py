@@ -14,8 +14,7 @@ def load_checkpoint(
 ):
 
     print("[INFO] Loading checkpoint")
-    if wandb.run:
-        print("wandb run")
+    if "experiments/" not in checkpoint_path:
         artifact = wandb.run.use_artifact(
             f"{checkpoint_path}-last_model:latest", type="model"
         )
@@ -24,7 +23,7 @@ def load_checkpoint(
         checkpoint = torch.load(checkpoint_path, weights_only=False)
         shutil.rmtree(artifact_dir)
     else:
-        print("wandb not run")
+        checkpoint = torch.load(checkpoint_path, weights_only=False)
 
     if os.path.exists(checkpoint_path):
         print(f"[INFO] Resumed from checkpoint: {checkpoint_path}")
@@ -35,7 +34,7 @@ def load_checkpoint(
 
     print("[INFO] Loading unet")
     unet.load_state_dict(checkpoint["unet_state_dict"])
-    
+
     print("[INFO] Loading scheduler")
     scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
 

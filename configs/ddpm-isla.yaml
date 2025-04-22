@@ -12,25 +12,26 @@ image_size: 64
 num_classes: 100
 
 # training
-batch_size: 32
+batch_size: 64
 num_workers: 4
 num_epochs: 50
 
 # optimizer
+warmup_epochs: 5
 max_epochs: 50
-learning_rate: 2e-4
+learning_rate: 1e-4
 weight_decay: 1e-4
 
 # Isla wandb
 wandb_username: islakong-carnegie-mellon-university
 wandb_key: b6dff554fc854aea97af8dccb735c241a19a6615
 project_name: dl-hw5
-run_name: ddpm(cosine)-vae-cfg
+run_name: ddpm(cosine)-vae-cfg-lr(1e-4)
 
-# resume wandb
-resume: True
-wandb_resume_id: "t0yxlvis"
-# resume_checkpoint_path: "/root/hw5/experiments/exp-11-ddim-cfg/checkpoints/checkpoint_epoch_4.pth"
+# # resume wandb
+# resume: True
+# wandb_resume_id: "fx31fo45"
+# resume_checkpoint_path: "/workspace/experiments/exp-6-ddpm(cosine)-vae-cfg-lr(1e-4)/checkpoints/checkpoint_epoch_0.pth"
 
 # # Ivy wandb
 # wandb_key: dbcb5b22a7512074ad91148adc5794d1955289ad
@@ -106,8 +107,8 @@ keep_last_model: True
 keep_best_model: False
 
 #evaluation during training
-eval_during_train: False
-eval_every_n_epoch: 5 # it takes 10 min to generate 500 images for evaluation each time
+eval_during_train: True
+eval_every_n_epoch: 10 # it takes 10 min to generate 500 images for evaluation each time
 eval_samples: 500 # 500
 eval_classes: 50 # 50
 

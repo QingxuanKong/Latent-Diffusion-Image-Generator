@@ -80,6 +80,7 @@ def parse_args():
     parser.add_argument("--num_epochs", type=int, default=10)
 
     # optimizer
+    parser.add_argument("--warmup_epochs", type=int, default=0, help="warmup epochs")
     parser.add_argument("--scheduler", type=str, default="cosine", help="scheduler")
     parser.add_argument("--max_epochs", type=int, default=50)
     parser.add_argument(
@@ -500,8 +501,22 @@ def main():
     args.max_train_steps = args.num_epochs * num_update_steps_per_epoch
 
     # TODO: setup scheduler
-    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=args.max_epochs * num_update_steps_per_epoch, eta_min=1e-6
+    warmup_steps = args.warmup_epochs * num_update_steps_per_epoch
+    warmup_scheduler = torch.optim.lr_scheduler.LinearLR(
+        optimizer,
+        start_factor=0.1,
+        end_factor=1.0,
+        total_iters=warmup_steps,
+    )
+    cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer,
+        T_max=args.max_epochs * num_update_steps_per_epoch - warmup_steps,
+        eta_min=1e-6,
+    )
+    lr_scheduler = torch.optim.lr_scheduler.SequentialLR(
+        optimizer,
+        schedulers=[warmup_scheduler, cosine_scheduler],
+        milestones=[warmup_steps],  # when to switch to cosine
     )
 
     # todo: check this
@@ -912,9 +927,7 @@ def main():
             epoch,
             save_dir=save_dir,
             keep_last_n=args.keep_last_n,
-            keep_last_model=(
-                args.keep_last_model if (epoch + 1) % 10 == 0 else False
-            ),
+            keep_last_model=(args.keep_last_model if (epoch + 1) % 10 == 0 else False),
             keep_best_model=args.keep_best_model,
             if_best_fid=if_best_fid,
             if_best_is=if_best_is,
