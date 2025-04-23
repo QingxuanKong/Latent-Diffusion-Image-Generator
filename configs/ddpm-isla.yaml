@@ -13,8 +13,8 @@ num_classes: 100
 
 # training
 batch_size: 64
-num_workers: 4
-num_epochs: 50
+num_workers: 6
+num_epochs: 10
 
 # optimizer
 warmup_epochs: 5
@@ -26,12 +26,12 @@ weight_decay: 1e-4
 wandb_username: islakong-carnegie-mellon-university
 wandb_key: b6dff554fc854aea97af8dccb735c241a19a6615
 project_name: dl-hw5
-run_name: ddpm(cosine)-ddim(500)-vae-cfg(transformer)-lr(1e-4)
+run_name: unet(256,1-2-4-8,1-2,3),transformer*2
 
-# resume wandb
-resume: True
-wandb_resume_id: "qtin91b3"
-resume_checkpoint_path: "/workspace/experiments/exp-9-ddpm(cosine)-ddim(500)-vae-cfg(transformer)-lr(1e-4)/checkpoints/checkpoint_epoch_16.pth"
+# # resume wandb
+# resume: True
+# wandb_resume_id: "qxjhivvj"
+# resume_checkpoint_path: "/workspace/experiments/exp-8-ddpm(cosine)-ddim(500)-vae-cfg(transformer*2)-lr(1e-4)/checkpoints/checkpoint_epoch_0.pth"
 
 # # Ivy wandb
 # wandb_key: dbcb5b22a7512074ad91148adc5794d1955289ad
@@ -59,14 +59,14 @@ resume_checkpoint_path: "/workspace/experiments/exp-9-ddpm(cosine)-ddim(500)-vae
 # vae unet
 unet_in_size: 16
 unet_in_ch: 3
-unet_ch: 128
-unet_ch_mult: [1, 2, 2, 4]
-unet_attn: [2, 3] # -> [1, 2]
-unet_num_res_blocks: 2
-unet_dropout: 0.0
+unet_ch: 256
+unet_ch_mult: [1, 2, 4, 8]
+unet_attn: [1, 2]
+unet_num_res_blocks: 3
+unet_dropout: 0.1
 use_adagn_resblock: False
 use_transformer_bottleneck: True
-transformer_depth: 1
+transformer_depth: 2
 transformer_num_heads: 8
 
 vae_config:
