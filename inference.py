@@ -70,6 +70,13 @@ def main():
         dropout=args.unet_dropout,
         conditional=args.use_cfg,
         c_dim=args.unet_ch,
+        # --- New arguments for AdaGN ResNet ---
+        use_adagn_resblock=args.use_adagn_resblock,
+        # --- New arguments for Transformer Bottleneck ---
+        use_transformer_bottleneck=args.use_transformer_bottleneck,
+        transformer_depth=args.transformer_depth,
+        transformer_num_heads=args.transformer_num_heads,
+        # --------------------------------------------
     )
     # print number of parameters
     num_params = sum(p.numel() for p in unet.parameters() if p.requires_grad)
