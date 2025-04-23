@@ -609,6 +609,7 @@ def main():
             vae=vae_wo_ddp,
             class_embedder=class_embedder_wo_ddp,
             optimizer=optimizer,
+            lr_scheduler=lr_scheduler,
             checkpoint_path=checkpoint_path,
         )
 

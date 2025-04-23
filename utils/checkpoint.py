@@ -54,7 +54,7 @@ def load_checkpoint(
     if lr_scheduler is not None and "lr_scheduler_state_dict" in checkpoint:
         print("[INFO] Loading lr scheduler")
         lr_scheduler.load_state_dict(checkpoint["lr_scheduler_state_dict"])
-
+    
     return checkpoint
 
 
