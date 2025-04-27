@@ -1,0 +1,106 @@
+seed: 42
+
+# DEBUG: Falses
+# output_dir: /workspace/experiments/
+
+# dataset
+dataset: imagenet100
+data_dir: /jet/home/ygao8/hw5_student_starter_code/data
+val_data_dir: /jet/home/ygao8/hw5_student_starter_code/data/imagenet100_128x128/validation 
+subset: 1.0
+image_size: 64
+num_classes: 100
+
+# training
+batch_size: 64
+num_workers: 4
+num_epochs: 50
+
+# optimizer
+warmup_epochs: 5
+max_epochs: 50
+learning_rate: 1e-4
+weight_decay: 1e-4
+
+# # resume wandb
+resume: False
+wandb_resume_id: "r2bd31z8"
+resume_checkpoint_path: "/jet/home/ygao8/11785-hw5/experiments/last_model.pth"
+
+# Ivy wandb
+wandb_key: dbcb5b22a7512074ad91148adc5794d1955289ad
+project_name: IDL-hw5-Ivy
+run_name: ddpm--epoch50-final
+
+# # unet
+# unet_in_size: 64
+# unet_in_ch: 3
+# unet_ch: 128
+# unet_ch_mult: [1, 2, 2, 4]
+# unet_attn: [2, 3]
+# unet_num_res_blocks: 2
+# unet_dropout: 0.0
+# use_adagn_resblock: False
+# use_transformer_bottleneck: False
+# transformer_depth: 1
+# transformer_num_heads: 8
+
+# vae unet
+unet_in_size: 16
+unet_in_ch: 3
+unet_ch: 192
+unet_ch_mult: [1, 2, 2, 4]
+unet_attn: [2, 3] # -> [1, 2]
+unet_num_res_blocks: 3
+unet_dropout: 0.0
+use_adagn_resblock: False
+use_transformer_bottleneck: False
+transformer_depth: 2
+transformer_num_heads: 2
+
+vae_config:
+  double_z: False
+  z_channels: 3
+  embed_dim: 3
+  resolution: 256
+  in_channels: 3
+  out_ch: 3
+  ch: 128
+  ch_mult: [1, 2, 4]
+  num_res_blocks: 2
+
+
+# ddpm
+num_train_timesteps: 1000
+num_inference_steps: 1000
+beta_start: 0.0002
+beta_end: 0.02
+beta_schedule: cosine
+variance_type: fixed_small
+predictor_type: epsilon
+
+#latent
+latent_ddpm: False
+
+# cfg
+use_cfg: False
+cfg_guidance_scale: 7.5
+cond_drop_rate: 0.1
+
+# ddim
+use_ddim: False
+
+# checkpoint
+keep_last_n: 1 # including the last one
+keep_last_model: True
+keep_best_model: False
+
+#evaluation during training
+eval_during_train: True
+eval_every_n_epoch: 10 # it takes 10 min to generate 500 images for evaluation each time
+eval_samples: 500 # 500
+eval_classes: 50 # 50
+
+# inference
+inference_samples: 5000
+ckpt: "/jet/home/ygao8/11785-hw5/experiments/exp-0-ddpm-ddim-vae-cfg-epoch50-Baseline/checkpoints/last_model.pth"
