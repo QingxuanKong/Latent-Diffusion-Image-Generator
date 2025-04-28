@@ -516,7 +516,7 @@ def main():
     cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         optimizer,
         T_max=args.max_epochs * num_update_steps_per_epoch - warmup_steps,
-        eta_min=1e-6,
+        eta_min=1e-9,
     )
     lr_scheduler = torch.optim.lr_scheduler.SequentialLR(
         optimizer,

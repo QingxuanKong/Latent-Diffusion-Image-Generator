@@ -15,7 +15,6 @@ def load_checkpoint(
 ):
 
     print("[INFO] Loading checkpoint")
-    print(f"[INFO] Checkpoint path: {checkpoint_path}")
     if "experiments/" not in checkpoint_path:
         artifact = wandb.run.use_artifact(
             f"{checkpoint_path}-last_model:latest", type="model"
