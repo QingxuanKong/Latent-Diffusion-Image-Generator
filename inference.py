@@ -21,7 +21,7 @@ from utils import (
     seed_everything,
     load_checkpoint,
     is_primary,
-    evaluate_fid_is,
+    evaluate_fid_is_lpips,
     build_val_loader,
 )
 
@@ -326,7 +326,7 @@ def main():
         rank=args.rank,
     )
 
-    fid_val, is_mean, is_std = evaluate_fid_is(
+    fid_val, is_mean, is_std, lpips_value = evaluate_fid_is_lpips(
         generated_images=all_images,  # [N, C, H, W] float in [-1, 1]
         val_loader=val_loader,  # already built earlier
         device=device,

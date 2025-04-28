@@ -8,29 +8,29 @@ dataset: imagenet100
 data_dir: /jet/home/ygao8/hw5_student_starter_code/data
 val_data_dir: /jet/home/ygao8/hw5_student_starter_code/data/imagenet100_128x128/validation 
 subset: 1.0
-image_size: 64
+image_size: 128 #128
 num_classes: 100
 
 # training
 batch_size: 64
 num_workers: 4
-num_epochs: 50
+num_epochs: 300
 
 # optimizer
-warmup_epochs: 5
-max_epochs: 50
+warmup_epochs: 30
+max_epochs: 400
 learning_rate: 1e-4
 weight_decay: 1e-4
 
 # # resume wandb
 resume: False
-wandb_resume_id: "r2bd31z8"
-resume_checkpoint_path: "/jet/home/ygao8/11785-hw5/experiments/last_model.pth"
+wandb_resume_id: "ut1briv6"
+resume_checkpoint_path: "/jet/home/ygao8/11785-hw5/experiments/exp-2-ddpm+vae+cfg--epoch300/checkpoints/last_epoch.pth"
 
 # Ivy wandb
 wandb_key: dbcb5b22a7512074ad91148adc5794d1955289ad
 project_name: IDL-hw5-Ivy
-run_name: ddpm--epoch50-final
+run_name: ddpm+vae+cfg+transformer--epoch150
 
 # # unet
 # unet_in_size: 64
@@ -46,7 +46,7 @@ run_name: ddpm--epoch50-final
 # transformer_num_heads: 8
 
 # vae unet
-unet_in_size: 16
+unet_in_size: 32 #32
 unet_in_ch: 3
 unet_ch: 192
 unet_ch_mult: [1, 2, 2, 4]
@@ -59,7 +59,7 @@ transformer_depth: 2
 transformer_num_heads: 2
 
 vae_config:
-  double_z: False
+  double_z: True
   z_channels: 3
   embed_dim: 3
   resolution: 256
@@ -80,11 +80,11 @@ variance_type: fixed_small
 predictor_type: epsilon
 
 #latent
-latent_ddpm: False
+latent_ddpm: True
 
 # cfg
-use_cfg: False
-cfg_guidance_scale: 7.5
+use_cfg: True
+cfg_guidance_scale: 3
 cond_drop_rate: 0.1
 
 # ddim
@@ -102,5 +102,5 @@ eval_samples: 500 # 500
 eval_classes: 50 # 50
 
 # inference
-inference_samples: 5000
-ckpt: "/jet/home/ygao8/11785-hw5/experiments/exp-0-ddpm-ddim-vae-cfg-epoch50-Baseline/checkpoints/last_model.pth"
+inference_samples: 200
+ckpt: "/jet/home/ygao8/11785-hw5/experiments/exp-0-ddpm+vae+cfg+transformer--epoch150/checkpoints/last_epoch.pth"
