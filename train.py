@@ -25,7 +25,7 @@ from utils import (
     str2bool,
     save_checkpoint,
     load_checkpoint,
-    evaluate_fid_is,
+    evaluate_fid_is_lpips,
     build_val_loader,
 )
 
@@ -239,6 +239,10 @@ def parse_args():
     )
     parser.add_argument(
         "--keep_best_model", type=str2bool, default=True, help="keep best model"
+    )
+
+    parser.add_argument(
+        "--best_lpips", type=float, default=1e9, help="Initial best LPIPS (smaller is better)"
     )
 
     # evaluation for inference in training
@@ -884,7 +888,7 @@ def main():
             )
 
             # Call evaluation function
-            fid_val, is_mean, is_std = evaluate_fid_is(
+            fid_val, is_mean, is_std, lpips_value = evaluate_fid_is_lpips(
                 generated_images=all_images,
                 val_loader=val_loader,
                 device=device,
@@ -902,9 +906,13 @@ def main():
                 args.best_is = is_mean
                 if_best_is = True
 
+            if lpips_value < args.best_lpips:
+                args.best_lpips = lpips_value
+                if_best_lpips = True
+
             # log to console
             logger.info(
-                f"Epoch {epoch+1}/{args.num_epochs}, FID: {fid_val}, IS: {is_mean} ± {is_std}, Best FID: {args.best_fid}, Best IS: {args.best_is}"
+                f"Epoch {epoch+1}/{args.num_epochs}, FID: {fid_val}, IS: {is_mean} ± {is_std}, Best FID: {args.best_fid}, Best IS: {args.best_is}, Best LPIPS: {args.best_lpips}"
             )
 
             # log to wandb
@@ -917,6 +925,7 @@ def main():
                         "eval/is_std": is_std,
                         "eval/best_fid": args.best_fid,
                         "eval/best_is": args.best_is,
+                        "eval/lpips": lpips_value,
                     },
                 )
 
