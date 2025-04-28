@@ -1,12 +1,11 @@
 seed: 42
 
 DEBUG: False
-output_dir: /workspace/experiments/
 
 # dataset
 dataset: imagenet100
-data_dir: /root/hw5/data
-val_data_dir: /root/hw5/data/imagenet100_128x128/validation
+data_dir: /jet/home/ikong/hw5/data
+val_data_dir: /jet/home/ikong/hw5/data/imagenet100_128x128/validation
 subset: 1.0
 image_size: 64
 num_classes: 100
@@ -14,7 +13,7 @@ num_classes: 100
 # training
 batch_size: 64
 num_workers: 6
-num_epochs: 20
+num_epochs: 50
 
 # optimizer
 warmup_epochs: 5
@@ -26,12 +25,12 @@ weight_decay: 1e-4
 wandb_username: islakong-carnegie-mellon-university
 wandb_key: b6dff554fc854aea97af8dccb735c241a19a6615
 project_name: dl-hw5
-run_name: unet(192,1-2-2-4,2-3,2),transformer*1
+run_name: unet(192,1-2-2-4,2-3,3)
 
 # # resume wandb
 # resume: True
-# wandb_resume_id: "a37q8h4k"
-# resume_checkpoint_path: "/workspace/experiments/exp-6-unet(192,1-2-4-8,0-1-2,3),transformer*2/checkpoints/checkpoint_epoch_0.pth"
+# wandb_resume_id: "nnvjrm59"
+# resume_checkpoint_path: "/jet/home/ikong/hw5/experiments/exp-4-unet(192,1-2-2-4,2-3,3),transformer(2,2)/checkpoints/checkpoint_epoch_49.pth"
 
 # # Ivy wandb
 # wandb_key: dbcb5b22a7512074ad91148adc5794d1955289ad
@@ -62,12 +61,12 @@ unet_in_ch: 3
 unet_ch: 192
 unet_ch_mult: [1, 2, 2, 4]
 unet_attn: [2, 3]
-unet_num_res_blocks: 2
+unet_num_res_blocks: 3
 unet_dropout: 0.1
 use_adagn_resblock: False
-use_transformer_bottleneck: True
-transformer_depth: 1
-transformer_num_heads: 8
+use_transformer_bottleneck: False
+transformer_depth: 2
+transformer_num_heads: 2
 
 vae_config:
   double_z: True
@@ -80,10 +79,9 @@ vae_config:
   ch_mult: [1, 2, 4]
   num_res_blocks: 2
 
-
 # ddpm
 num_train_timesteps: 1000
-num_inference_steps: 500
+num_inference_steps: 1000
 beta_start: 0.0002
 beta_end: 0.02
 beta_schedule: cosine
@@ -99,11 +97,11 @@ cfg_guidance_scale: 3.0
 cond_drop_rate: 0.1
 
 # ddim
-use_ddim: True
+use_ddim: False
 
 # checkpoint
 keep_last_n: 1 # including the last one
-keep_last_model: True
+keep_last_model: False
 keep_best_model: False
 
 #evaluation during training
@@ -112,6 +110,8 @@ eval_every_n_epoch: 10 # it takes 10 min to generate 500 images for evaluation e
 eval_samples: 500 # 500
 eval_classes: 50 # 50
 
-# inference
-inference_samples: 5000
-#
+# # inference
+# ckpt: "/jet/home/ikong/hw5/experiments/exp-4-unet(192,1-2-2-4,2-3,3),transformer(2,2)/checkpoints/checkpoint_epoch_49.pth"
+# inference_samples: 5000
+
+# 57.44, IS: 5.46 ± 0.19

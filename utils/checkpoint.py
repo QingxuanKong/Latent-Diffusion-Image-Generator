@@ -15,6 +15,7 @@ def load_checkpoint(
 ):
 
     print("[INFO] Loading checkpoint")
+    print(f"[INFO] Checkpoint path: {checkpoint_path}")
     if "experiments/" not in checkpoint_path:
         artifact = wandb.run.use_artifact(
             f"{checkpoint_path}-last_model:latest", type="model"
@@ -54,7 +55,7 @@ def load_checkpoint(
     if lr_scheduler is not None and "lr_scheduler_state_dict" in checkpoint:
         print("[INFO] Loading lr scheduler")
         lr_scheduler.load_state_dict(checkpoint["lr_scheduler_state_dict"])
-    
+
     return checkpoint
 
 
@@ -107,48 +108,36 @@ def save_checkpoint(
     if best_is is not None:
         checkpoint["best_is"] = best_is
 
-    # Save checkpoint
-    torch.save(checkpoint, checkpoint_path)
-    print(f"[INFO] Checkpoint saved at {checkpoint_path}")
-
-    # Save the last_model，and upload to WandB
-    if keep_last_model:
-        last_model_path = os.path.join(save_dir, "last_model.pth")
-        torch.save(checkpoint, last_model_path)
-        print(f"[INFO] Last model saved at {last_model_path}")
-
-        if wandb.run:
-            artifact = wandb.Artifact(f"{wandb.run.id}-last_model", type="model")
-            artifact.add_file(last_model_path)
-            wandb.log_artifact(artifact, aliases=["latest"])
-            print("[INFO] Uploaded last model to WandB with alias 'latest'")
-
     # Manage checkpoint history
     print(
         f"[INFO] Managing checkpoint history (only keep {keep_last_n} last checkpoints)"
     )
     manage_checkpoints(save_dir, keep_last_n=keep_last_n)
 
+    # Save checkpoint
+    torch.save(checkpoint, checkpoint_path)
+    print(f"[INFO] Checkpoint saved at {checkpoint_path}")
+
+    # Save the last_model，and upload to WandB
+    if keep_last_model:
+        if wandb.run:
+            artifact = wandb.Artifact(f"{wandb.run.id}-last_model", type="model")
+            artifact.add_file(checkpoint_path)
+            wandb.log_artifact(artifact, aliases=["latest"])
+            print("[INFO] Uploaded last model to WandB with alias 'latest'")
+
     # Save the best fid model and upload to WandB
     if keep_best_model and if_best_fid:
-        best_fid_model_path = os.path.join(save_dir, "best_fid_model.pth")
-        torch.save(checkpoint, best_fid_model_path)
-        print(f"[INFO] Best FID model saved at {best_fid_model_path}")
-
         if wandb.run:
             artifact = wandb.Artifact(f"{wandb.run.id}-best_fid_model", type="model")
-            artifact.add_file(best_fid_model_path)
+            artifact.add_file(checkpoint_path)
             wandb.log_artifact(artifact, aliases=["best-fid"])
             print("[INFO] Uploaded best FID model to WandB with alias 'best-fid'")
 
     if keep_best_model and if_best_is:
-        best_is_model_path = os.path.join(save_dir, "best_is_model.pth")
-        torch.save(checkpoint, best_is_model_path)
-        print(f"[INFO] Best IS model saved at {best_is_model_path}")
-
         if wandb.run:
             artifact = wandb.Artifact(f"{wandb.run.id}-best_is_model", type="model")
-            artifact.add_file(best_is_model_path)
+            artifact.add_file(checkpoint_path)
             wandb.log_artifact(artifact, aliases=["best-is"])
             print("[INFO] Uploaded best IS model to WandB with alias 'best-is'")
 
@@ -162,8 +151,14 @@ def manage_checkpoints(save_dir, keep_last_n=10):
 
     # If more than `keep_last_n` checkpoints exist, remove the oldest ones
     print(f"Found {len(checkpoints)} checkpoints in {save_dir}.")
-    if len(checkpoints) > keep_last_n:
-        for checkpoint_file in checkpoints[:-keep_last_n]:
+    if keep_last_n == 1:
+        for checkpoint_file in checkpoints:
+            checkpoint_path = os.path.join(save_dir, checkpoint_file)
+            if os.path.exists(checkpoint_path):
+                os.remove(checkpoint_path)
+                print(f"Removed old checkpoint: {checkpoint_path}")
+    elif len(checkpoints) > keep_last_n - 1:
+        for checkpoint_file in checkpoints[: -keep_last_n + 1]:
             checkpoint_path = os.path.join(save_dir, checkpoint_file)
             if os.path.exists(checkpoint_path):
                 os.remove(checkpoint_path)

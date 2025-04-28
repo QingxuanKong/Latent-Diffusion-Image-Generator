@@ -210,16 +210,19 @@ def main():
     all_images = torch.stack(all_images, dim=0)
 
     # sample from all_images
-    sample_images = all_images[:4]  # Display the first 4 images
-    grid_image = Image.new("RGB", (4 * args.image_size, 1 * args.image_size))
-    for i, image in enumerate(sample_images):
-        x = (i % 4) * args.image_size
-        y = 0
-        pil_img = transforms.ToPILImage()(image.cpu())
-        grid_image.paste(pil_img, (x, y))
+    for i in range(50):
+        start_idx = i * 4
+        end_idx = start_idx + 4
+        sample_images = all_images[start_idx:end_idx]
+        grid_image = Image.new("RGB", (4 * args.image_size, 1 * args.image_size))
+        for i, image in enumerate(sample_images):
+            x = (i % 4) * args.image_size
+            y = 0
+            pil_img = transforms.ToPILImage()(image.cpu())
+            grid_image.paste(pil_img, (x, y))
 
-    if is_primary(args) and not args.DEBUG:
-        wandb_logger.log({"infer_images": wandb.Image(grid_image)})
+        if is_primary(args) and not args.DEBUG:
+            wandb_logger.log({"infer_images": wandb.Image(grid_image)})
 
     """
     # TODO: load validation images as reference batch

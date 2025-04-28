@@ -303,6 +303,7 @@ def parse_args():
         with open(args.config, "r", encoding="utf-8") as f:
             file_yaml = yaml.YAML()
             config_args = file_yaml.load(f)
+            print(f"[INFO] Loaded config file: {config_args}")
             parser.set_defaults(**config_args)
 
     # re-parse command-line args to overwrite with any command-line inputs
@@ -517,7 +518,7 @@ def main():
         optimizer,
         schedulers=[warmup_scheduler, cosine_scheduler],
         milestones=[warmup_steps],  # when to switch to cosine
-        last_epoch=-1
+        last_epoch=-1,
     )
 
     # todo: check this
