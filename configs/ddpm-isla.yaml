@@ -7,13 +7,13 @@ dataset: imagenet100
 data_dir: /jet/home/ikong/hw5/data
 val_data_dir: /jet/home/ikong/hw5/data/imagenet100_128x128/validation
 subset: 1.0
-image_size: 128
+image_size: 64
 num_classes: 100
 
 # training
 batch_size: 64
 num_workers: 6
-num_epochs: 200
+num_epochs: 50
 
 # optimizer
 warmup_epochs: 10
@@ -25,12 +25,12 @@ weight_decay: 1e-4
 wandb_username: islakong-carnegie-mellon-university
 wandb_key: b6dff554fc854aea97af8dccb735c241a19a6615
 project_name: dl-hw5
-run_name: unet(192,1-2-2-4,2-3,3)-transformer(2,2)
+run_name: 64-unet-transformer(2,2)-vae(train10,kl0.001,vae0.05,lpips1.0)
 
-# resume wandb
-resume: True
-wandb_resume_id: "jbh8gv3u"
-resume_checkpoint_path: "/jet/home/ikong/hw5/experiments/exp-2-unet(192,1-2-2-4,2-3,3)-transformer(2,2)/checkpoints/checkpoint_epoch_41.pth"
+# # resume wandb
+# resume: True
+# wandb_resume_id: "61h2zrdl"
+# resume_checkpoint_path: "/jet/home/ikong/hw5/experiments/exp-1-64-unet-transformer(2,2)-vae(train,10,0.001,0.05)/checkpoints/checkpoint_epoch_8.pth"
 
 # # Ivy wandb
 # wandb_key: dbcb5b22a7512074ad91148adc5794d1955289ad
@@ -56,7 +56,7 @@ resume_checkpoint_path: "/jet/home/ikong/hw5/experiments/exp-2-unet(192,1-2-2-4,
 # transformer_num_heads: 8
 
 # vae unet
-unet_in_size: 32
+unet_in_size: 16
 unet_in_ch: 3
 unet_ch: 192
 unet_ch_mult: [1, 2, 2, 4]
@@ -90,6 +90,10 @@ predictor_type: epsilon
 
 #latent
 latent_ddpm: True
+freeze_vae_epoch: 10
+kl_beta: 0.001
+lpips_lambda: 1.0
+vae_lambda: 0.05
 
 # cfg
 use_cfg: True

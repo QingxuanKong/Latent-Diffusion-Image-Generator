@@ -72,8 +72,10 @@ def save_checkpoint(
     keep_best_model=True,
     if_best_fid=False,
     if_best_is=False,
+    if_best_lpips=False,
     best_fid=None,
     best_is=None,
+    best_lpips=None,
 ):
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
@@ -107,6 +109,9 @@ def save_checkpoint(
     if best_is is not None:
         checkpoint["best_is"] = best_is
 
+    if best_lpips is not None:
+        checkpoint["best_lpips"] = best_lpips
+
     # Manage checkpoint history
     print(
         f"[INFO] Managing checkpoint history (only keep {keep_last_n} last checkpoints)"
@@ -139,6 +144,13 @@ def save_checkpoint(
             artifact.add_file(checkpoint_path)
             wandb.log_artifact(artifact, aliases=["best-is"])
             print("[INFO] Uploaded best IS model to WandB with alias 'best-is'")
+
+    if keep_best_model and if_best_lpips:
+        if wandb.run:
+            artifact = wandb.Artifact(f"{wandb.run.id}-best_lpips_model", type="model")
+            artifact.add_file(checkpoint_path)
+            wandb.log_artifact(artifact, aliases=["best-lpips"])
+            print("[INFO] Uploaded best LPIPS model to WandB with alias 'best-lpips'")
 
 
 def manage_checkpoints(save_dir, keep_last_n=10):

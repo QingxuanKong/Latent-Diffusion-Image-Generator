@@ -48,7 +48,7 @@ class VAE(nn.Module):
         self.quant_conv = torch.nn.Conv2d(2 * z_channels, 2 * embed_dim, 1)
         self.post_quant_conv = torch.nn.Conv2d(embed_dim, z_channels, 1)
 
-    @torch.no_grad()
+    # @torch.no_grad()
     def encode(self, x):
         # TODO: Implemente the encode function transforms images into a sampled vector from
         h = self.encoder(x)  # (B, 2 * z_channels, H', W')
@@ -58,7 +58,7 @@ class VAE(nn.Module):
         posterior = DiagonalGaussianDistribution(moments)  # (B, embed_dim, H', W')
         return posterior
 
-    @torch.no_grad()
+    # @torch.no_grad()
     def decode(self, z):
         # TODO: reconstruct images from latent
         z = self.post_quant_conv(z)  # (B, z_channels, H', W')

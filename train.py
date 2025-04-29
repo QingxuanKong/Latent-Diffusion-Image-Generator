@@ -10,9 +10,11 @@ from logging import getLogger as get_logger
 from tqdm import tqdm
 from PIL import Image
 import torch.nn.functional as F
-
 from torchvision import datasets, transforms
 from torchvision.utils import make_grid
+from torch.cuda.amp import GradScaler
+from torch.cuda.amp import autocast
+import lpips
 
 from models import UNet, VAE, ClassEmbedder
 from schedulers import DDPMScheduler, DDIMScheduler
@@ -28,9 +30,6 @@ from utils import (
     evaluate_fid_is_lpips,
     build_val_loader,
 )
-
-from torch.cuda.amp import GradScaler
-from torch.cuda.amp import autocast
 
 logger = get_logger(__name__)
 
@@ -201,6 +200,27 @@ def parse_args():
     parser.add_argument(
         "--latent_ddpm", type=str2bool, default=False, help="use vqvae for latent ddpm"
     )
+    parser.add_argument(
+        "--freeze_vae_epoch",
+        type=int,
+        default=10,
+        help="free vae params after this epoch",
+    )
+    parser.add_argument(
+        "--kl_beta",
+        type=float,
+        default=0.001,
+        help="kl divergence beta to add to vae loss",
+    )
+    parser.add_argument(
+        "--lpips_lambda",
+        type=float,
+        default=1.0,
+        help="lpips lambda to add to vae loss",
+    )
+    parser.add_argument(
+        "--vae_lambda", type=float, default=0.05, help="vae lambda to add to ddpm loss"
+    )
 
     # cfg
     parser.add_argument(
@@ -239,10 +259,6 @@ def parse_args():
     )
     parser.add_argument(
         "--keep_best_model", type=str2bool, default=True, help="keep best model"
-    )
-
-    parser.add_argument(
-        "--best_lpips", type=float, default=1e9, help="Initial best LPIPS (smaller is better)"
     )
 
     # evaluation for inference in training
@@ -473,7 +489,13 @@ def main():
         vae = VAE(**args.vae_config)
         # NOTE: do not change this
         vae.init_from_ckpt("pretrained/model.ckpt")
-        vae.eval()
+        # Set VAE to trainable
+        for param in vae.parameters():
+            param.requires_grad = True
+        vae.train()
+
+    lpips_fn = lpips.LPIPS(net="vgg").to(device)
+    lpips_fn.eval()
 
     # Note: this is for cfg
     class_embedder = None
@@ -497,8 +519,15 @@ def main():
     # -----set up optimizer and scheduler--------
     # -------------------------------------------
     # TODO: setup optimizer
+    vae_params = list(vae.parameters())
+    unet_params = list(unet.parameters())
+
     optimizer = torch.optim.AdamW(
-        unet.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay
+        [
+            {"params": unet_params, "lr": args.learning_rate},
+            {"params": vae_params, "lr": args.learning_rate * 0.5},
+        ],
+        weight_decay=args.weight_decay,
     )
 
     # max train steps
@@ -633,10 +662,16 @@ def main():
         else:
             args.best_is = float("-inf")
 
+        if "best_lpips" in checkpoint:
+            args.best_lpips = checkpoint["best_lpips"]
+        else:
+            args.best_lpips = float("inf")
+
     else:
         start_epoch = 0
         args.best_fid = float("inf")
         args.best_is = float("-inf")
+        args.best_lpips = float("inf")
 
     # Start training
     if is_primary(args):
@@ -660,6 +695,9 @@ def main():
     # Only show the progress bar once on each machine.
     progress_bar = tqdm(range(args.max_train_steps), disable=not is_primary(args))
 
+    # unfreeze vae
+    vae_frozen = False
+
     for epoch in range(start_epoch, args.num_epochs):
 
         # -------------------------------------------
@@ -679,11 +717,52 @@ def main():
         unet.train()
         scheduler.train()
 
+        # freeze vae
+        if vae is not None:
+            if (epoch + 1) == args.freeze_vae_epoch and not vae_frozen:
+                for param in vae.parameters():
+                    param.requires_grad = False
+                vae.eval()
+                vae_frozen = True
+                logger.info(f"[INFO] VAE is now frozen at epoch {epoch + 1}.")
+
+                new_param_groups = []
+                for group in optimizer.param_groups:
+                    new_params = [p for p in group["params"] if p.requires_grad]
+                    if len(new_params) > 0:
+                        new_group = {k: v for k, v in group.items()}
+                        new_group["params"] = new_params
+                        new_param_groups.append(new_group)
+                optimizer.param_groups = new_param_groups
+                optimizer.state = {
+                    k: v
+                    for k, v in optimizer.state.items()
+                    if any(
+                        k is p
+                        for group in optimizer.param_groups
+                        for p in group["params"]
+                    )
+                }
+
+        if (
+            args.DEBUG
+            and vae is not None
+            and any(param.requires_grad for param in vae.parameters())
+        ):
+            if (epoch + 1) < args.freeze_vae_epoch:
+                print(f"[INFO] VAE is trainable at epoch {epoch + 1}.")
+                for name, param in vae.named_parameters():
+                    print(f"VAE Param: {name}, requires_grad: {param.requires_grad}")
+            elif (epoch + 1) > args.freeze_vae_epoch:
+                print(f"[INFO] VAE is frozen at epoch {epoch + 1}.")
+                for name, param in vae.named_parameters():
+                    print(f"VAE Param:: {name}, requires_grad: {param.requires_grad}")
+
         # TODO: finish this
         for step, (images, labels) in enumerate(train_loader):
 
             # initialize the save model flags to False
-            if_best_fid, if_best_is = False, False
+            if_best_fid, if_best_is, if_best_lpips = False, False, False
 
             # record batch size
             batch_size = images.size(0)
@@ -694,6 +773,7 @@ def main():
 
             # NOTE: this is for latent DDPM
             if vae is not None:
+                real_images = images.clone()
                 # use vae to encode images as latents
                 with torch.no_grad():
                     with torch.cuda.amp.autocast(
@@ -735,7 +815,35 @@ def main():
                     target = noise
 
                 # TODO: calculate loss
-                loss = F.mse_loss(model_pred, target)
+                diffusion_loss = F.mse_loss(model_pred, target)
+
+                # VAE losses (reconstruction + KL)
+                if vae is not None and any(
+                    param.requires_grad for param in vae.parameters()
+                ):
+                    posterior = vae.encode(real_images)
+                    z = posterior.sample()
+                    recon_images = vae.decode(z)
+
+                    recon_loss = F.mse_loss(recon_images, real_images)
+                    kl_loss = posterior.kl().mean()
+                    perceptual_loss = lpips_fn(recon_images, real_images).mean()
+
+                    # calculate loss
+                    vae_loss = (
+                        recon_loss
+                        + args.kl_beta * kl_loss
+                        + args.lpips_lambda * perceptual_loss
+                    )
+                    vae_lambda = (
+                        min(1.0, (epoch + 1) / (args.freeze_vae_epoch + 1))
+                        * args.vae_lambda
+                    )
+                    # combine loss
+                    loss = diffusion_loss + vae_lambda * vae_loss
+
+                else:
+                    loss = diffusion_loss
 
             # record loss
             loss_m.update(loss.item())
@@ -773,12 +881,43 @@ def main():
                 )
 
                 if is_primary(args) and not args.DEBUG:
-                    wandb_logger.log(
-                        {
-                            "train/loss": loss_m.avg,
-                            "train/learning_rate": optimizer.param_groups[0]["lr"],
-                        },
-                    )
+                    wandb_log_dict = {
+                        "train/loss": loss_m.avg,
+                        "train/diffusion_loss": diffusion_loss.item(),
+                        "train/learning_rate": optimizer.param_groups[0]["lr"],
+                    }
+                    if vae is not None and any(
+                        param.requires_grad for param in vae.parameters()
+                    ):
+                        wandb_log_dict.update(
+                            {
+                                "train/vae_loss": vae_loss.item(),
+                                "train/vae_lambda": vae_lambda,
+                                "train/recon_loss": recon_loss.item(),
+                                "train/kl_loss": kl_loss.item(),
+                                "train/perceptual_loss": perceptual_loss.item(),
+                            }
+                        )
+
+                    wandb_logger.log(wandb_log_dict)
+
+                if (
+                    args.DEBUG
+                    and vae is not None
+                    and any(param.requires_grad for param in vae.parameters())
+                ):
+                    vae_grads = [
+                        param.grad.abs().mean()
+                        for param in vae.parameters()
+                        if param.grad is not None
+                    ]
+                    if len(vae_grads) > 0:
+                        mean_grad = torch.stack(vae_grads).mean().item()
+                        print(
+                            f"[Epoch {epoch} Step {step}] VAE Mean Grad: {mean_grad:.6f}"
+                        )
+                    else:
+                        print(f"[Epoch {epoch} Step {step}] VAE: No grads")
 
         # -------------------------------------------
         # ----------------validation-----------------
@@ -923,9 +1062,10 @@ def main():
                         "eval/fid": fid_val,
                         "eval/is_mean": is_mean,
                         "eval/is_std": is_std,
+                        "eval/lpips": lpips_value,
                         "eval/best_fid": args.best_fid,
                         "eval/best_is": args.best_is,
-                        "eval/lpips": lpips_value,
+                        "eval/best_lpips": args.best_lpips,
                     },
                 )
 
@@ -944,8 +1084,10 @@ def main():
             keep_best_model=args.keep_best_model,
             if_best_fid=if_best_fid,
             if_best_is=if_best_is,
+            if_best_lpips=if_best_lpips,
             best_fid=float("inf") if not args.best_fid else args.best_fid,
             best_is=float("-inf") if not args.best_is else args.best_is,
+            best_lpips=float("inf") if not args.best_lpips else args.best_lpips,
         )
 
     if is_primary(args) and not args.DEBUG:
