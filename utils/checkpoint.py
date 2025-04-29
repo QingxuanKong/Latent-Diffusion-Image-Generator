@@ -49,6 +49,9 @@ def load_checkpoint(
 
     if optimizer is not None and "optimizer_state_dict" in checkpoint:
         print("[INFO] Loading optimizer")
+        # print("[DEBUG] Checkpoint optimizer_state_dict param_groups:")
+        # for i, group in enumerate(checkpoint["optimizer_state_dict"]["param_groups"]):
+        #     print(f"  Group {i}: {len(group['params'])} params")
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
     if lr_scheduler is not None and "lr_scheduler_state_dict" in checkpoint:

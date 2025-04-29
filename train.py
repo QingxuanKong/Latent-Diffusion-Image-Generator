@@ -519,7 +519,7 @@ def main():
     # -----set up optimizer and scheduler--------
     # -------------------------------------------
     # TODO: setup optimizer
-    vae_params = list(vae.parameters())
+    vae_params = list(vae.parameters()) if vae else []
     unet_params = list(unet.parameters())
 
     optimizer = torch.optim.AdamW(
@@ -529,6 +529,17 @@ def main():
         ],
         weight_decay=args.weight_decay,
     )
+
+    # optimizer = torch.optim.AdamW(
+    #     [
+    #         {"params": unet_params, "lr": args.learning_rate},
+    #     ],
+    #     weight_decay=args.weight_decay,
+    # )
+
+    # print("[DEBUG] Current optimizer.param_groups:")
+    # for i, group in enumerate(optimizer.param_groups):
+    #     print(f"  Group {i}: {len(group['params'])} params")
 
     # max train steps
     num_update_steps_per_epoch = len(train_loader)
@@ -696,7 +707,15 @@ def main():
     progress_bar = tqdm(range(args.max_train_steps), disable=not is_primary(args))
 
     # unfreeze vae
-    vae_frozen = False
+    if (start_epoch + 1) < args.freeze_vae_epoch:
+        vae_frozen = False
+    else:
+        vae_frozen = True
+        for param in vae.parameters():
+            param.requires_grad = False
+        vae.eval()
+        vae_frozen = True
+    print(f"[INFO] VAE is frozen: {vae_frozen}")
 
     for epoch in range(start_epoch, args.num_epochs):
 
@@ -724,31 +743,6 @@ def main():
                     param.requires_grad = False
                 vae.eval()
                 vae_frozen = True
-                logger.info(f"[INFO] VAE is now frozen at epoch {epoch + 1}.")
-
-                # optimizer = torch.optim.AdamW(
-                #     unet.parameters(),
-                #     weight_decay=args.weight_decay,
-                # )
-
-                # # max train steps
-                # warmup_scheduler = torch.optim.lr_scheduler.LinearLR(
-                #     optimizer,
-                #     start_factor=0.1,
-                #     end_factor=1.0,
-                #     total_iters=warmup_steps,
-                # )
-                # cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                #     optimizer,
-                #     T_max=args.max_epochs * num_update_steps_per_epoch - warmup_steps,
-                #     eta_min=1e-9,
-                # )
-                # lr_scheduler = torch.optim.lr_scheduler.SequentialLR(
-                #     optimizer,
-                #     schedulers=[warmup_scheduler, cosine_scheduler],
-                #     milestones=[warmup_steps],  # when to switch to cosine
-                #     last_epoch=-1,
-                # )
 
                 new_param_groups = []
                 for group in optimizer.param_groups:
@@ -768,19 +762,10 @@ def main():
                     )
                 }
 
-        if (
-            args.DEBUG
-            and vae is not None
-            and any(param.requires_grad for param in vae.parameters())
-        ):
-            if (epoch + 1) < args.freeze_vae_epoch:
-                print(f"[INFO] VAE is trainable at epoch {epoch + 1}.")
-                for name, param in vae.named_parameters():
-                    print(f"VAE Param: {name}, requires_grad: {param.requires_grad}")
-            elif (epoch + 1) > args.freeze_vae_epoch:
-                print(f"[INFO] VAE is frozen at epoch {epoch + 1}.")
-                for name, param in vae.named_parameters():
-                    print(f"VAE Param:: {name}, requires_grad: {param.requires_grad}")
+            if vae_frozen:
+                logger.info(f"[INFO] VAE is frozen at epoch {epoch + 1}.")
+            else:
+                logger.info(f"[INFO] VAE is trainable at epoch {epoch + 1}.")
 
         # TODO: finish this
         for step, (images, labels) in enumerate(train_loader):
@@ -942,6 +927,10 @@ def main():
                         )
                     else:
                         print(f"[Epoch {epoch} Step {step}] VAE: No grads")
+
+        print("[DEBUG] Current optimizer.param_groups:")
+        for i, group in enumerate(optimizer.param_groups):
+            print(f"  Group {i}: {len(group['params'])} params")
 
         # -------------------------------------------
         # ----------------validation-----------------
