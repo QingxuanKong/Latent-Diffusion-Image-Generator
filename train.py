@@ -726,6 +726,30 @@ def main():
                 vae_frozen = True
                 logger.info(f"[INFO] VAE is now frozen at epoch {epoch + 1}.")
 
+                # optimizer = torch.optim.AdamW(
+                #     unet.parameters(),
+                #     weight_decay=args.weight_decay,
+                # )
+
+                # # max train steps
+                # warmup_scheduler = torch.optim.lr_scheduler.LinearLR(
+                #     optimizer,
+                #     start_factor=0.1,
+                #     end_factor=1.0,
+                #     total_iters=warmup_steps,
+                # )
+                # cosine_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                #     optimizer,
+                #     T_max=args.max_epochs * num_update_steps_per_epoch - warmup_steps,
+                #     eta_min=1e-9,
+                # )
+                # lr_scheduler = torch.optim.lr_scheduler.SequentialLR(
+                #     optimizer,
+                #     schedulers=[warmup_scheduler, cosine_scheduler],
+                #     milestones=[warmup_steps],  # when to switch to cosine
+                #     last_epoch=-1,
+                # )
+
                 new_param_groups = []
                 for group in optimizer.param_groups:
                     new_params = [p for p in group["params"] if p.requires_grad]

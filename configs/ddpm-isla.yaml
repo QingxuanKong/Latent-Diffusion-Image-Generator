@@ -17,7 +17,7 @@ num_epochs: 50
 
 # optimizer
 warmup_epochs: 10
-max_epochs: 300
+max_epochs: 100
 learning_rate: 1e-4
 weight_decay: 1e-4
 
@@ -25,7 +25,7 @@ weight_decay: 1e-4
 wandb_username: islakong-carnegie-mellon-university
 wandb_key: b6dff554fc854aea97af8dccb735c241a19a6615
 project_name: dl-hw5
-run_name: 64-unet-transformer(2,2)-vae(train10,kl0.001,vae0.05,lpips1.0)
+run_name: 64-unet-transformer(2,2)-vae(train10,kl0.005,lpips1.0,vae0.05)
 
 # # resume wandb
 # resume: True
@@ -65,8 +65,8 @@ unet_num_res_blocks: 3
 unet_dropout: 0.1
 use_adagn_resblock: False
 use_transformer_bottleneck: True
-transformer_depth: 2
-transformer_num_heads: 2
+transformer_depth: 4
+transformer_num_heads: 8
 
 vae_config:
   double_z: True
@@ -88,12 +88,16 @@ beta_schedule: cosine
 variance_type: fixed_small
 predictor_type: epsilon
 
-#latent
+# latent
 latent_ddpm: True
 freeze_vae_epoch: 10
-kl_beta: 0.001
+kl_beta: 0.005
 lpips_lambda: 1.0
 vae_lambda: 0.05
+
+# kl_beta: 0.005, lpips_lambda: 1.0, vae_lambda: 0.05
+# kl_beta: 0.01,  lpips_lambda: 0.5, vae_lambda: 0.05
+# kl_beta: 0.001, lpips_lambda: 1.0, vae_lambda: 0.05
 
 # cfg
 use_cfg: True
