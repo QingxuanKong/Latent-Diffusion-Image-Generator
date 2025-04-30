@@ -3,3 +3,5 @@ ruamel.yaml
 wandb 
 einops
 utils
+lpips
+pytorch_lightning

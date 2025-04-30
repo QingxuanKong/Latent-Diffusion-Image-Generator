@@ -522,24 +522,32 @@ def main():
     vae_params = list(vae.parameters()) if vae else []
     unet_params = list(unet.parameters())
 
+    # if vae:
+    #     optimizer = torch.optim.AdamW(
+    #         [
+    #             {"params": unet_params, "lr": args.learning_rate},
+    #             {"params": vae_params, "lr": args.learning_rate * 0.5},
+    #         ],
+    #         weight_decay=args.weight_decay,
+    #     )
+    # else:
+    #     optimizer = torch.optim.AdamW(
+    #         [
+    #             {"params": unet_params, "lr": args.learning_rate},
+    #         ],
+    #         weight_decay=args.weight_decay,
+    #     )
+
     optimizer = torch.optim.AdamW(
         [
             {"params": unet_params, "lr": args.learning_rate},
-            {"params": vae_params, "lr": args.learning_rate * 0.5},
         ],
         weight_decay=args.weight_decay,
     )
 
-    # optimizer = torch.optim.AdamW(
-    #     [
-    #         {"params": unet_params, "lr": args.learning_rate},
-    #     ],
-    #     weight_decay=args.weight_decay,
-    # )
-
-    # print("[DEBUG] Current optimizer.param_groups:")
-    # for i, group in enumerate(optimizer.param_groups):
-    #     print(f"  Group {i}: {len(group['params'])} params")
+    print("[DEBUG] Current optimizer.param_groups:")
+    for i, group in enumerate(optimizer.param_groups):
+        print(f"  Group {i}: {len(group['params'])} params")
 
     # max train steps
     num_update_steps_per_epoch = len(train_loader)

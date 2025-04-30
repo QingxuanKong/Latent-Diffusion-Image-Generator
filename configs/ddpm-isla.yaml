@@ -1,23 +1,25 @@
 seed: 42
 
 DEBUG: False
+output_dir: /workspace/experiments
 
 # dataset
 dataset: imagenet100
-data_dir: /jet/home/ikong/hw5/data
-val_data_dir: /jet/home/ikong/hw5/data/imagenet100_128x128/validation
+data_dir: /workspace/data
+val_data_dir: /workspace/data/imagenet100_128x128/validation
 subset: 1.0
 image_size: 128
 num_classes: 100
 
 # training
 batch_size: 64
-num_workers: 6
-num_epochs: 50
+num_workers: 48
+num_epochs: 80
+mixed_precision: bf16
 
 # optimizer
 warmup_epochs: 1
-max_epochs: 70
+max_epochs: 50
 learning_rate: 5e-5
 weight_decay: 1e-4
 
@@ -25,12 +27,12 @@ weight_decay: 1e-4
 wandb_username: islakong-carnegie-mellon-university
 wandb_key: b6dff554fc854aea97af8dccb735c241a19a6615
 project_name: dl-hw5
-run_name: 128-unet-vae(train10,kl0.0005,lpips1.0,vae0.05)-cfg-trans
+run_name: final-ddpm-vae-cfg-transformer
 
 # resume wandb
 resume: True
 wandb_resume_id: "dpuac806"
-resume_checkpoint_path: "/jet/home/ikong/hw5/experiments/exp-1-128-unet-trans-vae(train10,kl0.0005,lpips1.0,vae0.05)-cfg/checkpoints/checkpoint_epoch_29.pth"
+resume_checkpoint_path: "/workspace/checkpoint_epoch_29.pth"
 
 # # Ivy wandb
 # wandb_key: dbcb5b22a7512074ad91148adc5794d1955289ad
