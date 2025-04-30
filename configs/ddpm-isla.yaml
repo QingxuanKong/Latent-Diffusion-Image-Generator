@@ -14,11 +14,11 @@ num_classes: 100
 # training
 batch_size: 64
 num_workers: 48
-num_epochs: 80
+num_epochs: 50
 mixed_precision: bf16
 
 # optimizer
-warmup_epochs: 1
+warmup_epochs: 5
 max_epochs: 50
 learning_rate: 5e-5
 weight_decay: 1e-4
@@ -29,10 +29,10 @@ wandb_key: b6dff554fc854aea97af8dccb735c241a19a6615
 project_name: dl-hw5
 run_name: final-ddpm-vae-cfg-transformer
 
-# resume wandb
-resume: True
-wandb_resume_id: "dpuac806"
-resume_checkpoint_path: "/workspace/checkpoint_epoch_29.pth"
+# # resume wandb
+# resume: True
+# wandb_resume_id: "dpuac806"
+# resume_checkpoint_path: "/workspace/checkpoint_epoch_29.pth"
 
 # # Ivy wandb
 # wandb_key: dbcb5b22a7512074ad91148adc5794d1955289ad
@@ -95,7 +95,7 @@ latent_ddpm: True
 freeze_vae_epoch: 10
 kl_beta: 0.0005
 lpips_lambda: 1.0
-vae_lambda: 0.5
+vae_lambda: 0.05
 
 # cfg
 use_cfg: True

@@ -522,28 +522,28 @@ def main():
     vae_params = list(vae.parameters()) if vae else []
     unet_params = list(unet.parameters())
 
-    # if vae:
-    #     optimizer = torch.optim.AdamW(
-    #         [
-    #             {"params": unet_params, "lr": args.learning_rate},
-    #             {"params": vae_params, "lr": args.learning_rate * 0.5},
-    #         ],
-    #         weight_decay=args.weight_decay,
-    #     )
-    # else:
-    #     optimizer = torch.optim.AdamW(
-    #         [
-    #             {"params": unet_params, "lr": args.learning_rate},
-    #         ],
-    #         weight_decay=args.weight_decay,
-    #     )
+    if vae:
+        optimizer = torch.optim.AdamW(
+            [
+                {"params": unet_params, "lr": args.learning_rate},
+                {"params": vae_params, "lr": args.learning_rate * 0.5},
+            ],
+            weight_decay=args.weight_decay,
+        )
+    else:
+        optimizer = torch.optim.AdamW(
+            [
+                {"params": unet_params, "lr": args.learning_rate},
+            ],
+            weight_decay=args.weight_decay,
+        )
 
-    optimizer = torch.optim.AdamW(
-        [
-            {"params": unet_params, "lr": args.learning_rate},
-        ],
-        weight_decay=args.weight_decay,
-    )
+    # optimizer = torch.optim.AdamW(
+    #     [
+    #         {"params": unet_params, "lr": args.learning_rate},
+    #     ],
+    #     weight_decay=args.weight_decay,
+    # )
 
     print("[DEBUG] Current optimizer.param_groups:")
     for i, group in enumerate(optimizer.param_groups):
@@ -717,13 +717,14 @@ def main():
     # unfreeze vae
     if (start_epoch + 1) < args.freeze_vae_epoch:
         vae_frozen = False
+        print(f"[INFO] VAE is trainable")
     else:
         vae_frozen = True
         for param in vae.parameters():
             param.requires_grad = False
         vae.eval()
         vae_frozen = True
-    print(f"[INFO] VAE is frozen: {vae_frozen}")
+        print(f"[INFO] VAE is frozen")
 
     for epoch in range(start_epoch, args.num_epochs):
 
