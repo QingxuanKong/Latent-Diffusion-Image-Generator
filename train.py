@@ -802,7 +802,7 @@ def main():
                     ):
                         images = vae.encode(images).sample()
                 # NOTE: do not change this line, this is to ensure the latent has unit std
-                images = images * 0.18215  # 0.1845
+                images = images * 0.1845  # 0.1845
 
             # TODO: zero grad optimizer
             optimizer.zero_grad()

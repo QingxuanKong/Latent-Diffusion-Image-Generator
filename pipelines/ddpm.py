@@ -146,7 +146,7 @@ class DDPMPipeline:
         # TODO: use VQVAE to get final image
         if self.vae is not None:
             # NOTE: remember to rescale your images
-            image = 1 / 0.18215 * image
+            image = 1 / 0.1845 * image
             # Decode the image
             image = self.vae.decode(image)
 

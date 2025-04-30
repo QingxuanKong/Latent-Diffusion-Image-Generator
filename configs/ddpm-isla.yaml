@@ -14,12 +14,12 @@ num_classes: 100
 # training
 batch_size: 64
 num_workers: 16
-num_epochs: 100
-mixed_precision: bf16
+num_epochs: 300
+# mixed_precision: bf16
 
 # optimizer
 warmup_epochs: 10
-max_epochs: 100
+max_epochs: 300
 learning_rate: 5e-5
 weight_decay: 1e-4
 
