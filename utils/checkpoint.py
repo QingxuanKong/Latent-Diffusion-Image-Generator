@@ -47,16 +47,16 @@ def load_checkpoint(
         print("[INFO] Loading class embedder")
         class_embedder.load_state_dict(checkpoint["class_embedder_state_dict"])
 
-    # if optimizer is not None and "optimizer_state_dict" in checkpoint:
-    #     print("[INFO] Loading optimizer")
-    #     # print("[DEBUG] Checkpoint optimizer_state_dict param_groups:")
-    #     # for i, group in enumerate(checkpoint["optimizer_state_dict"]["param_groups"]):
-    #     #     print(f"  Group {i}: {len(group['params'])} params")
-    #     optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+    if optimizer is not None and "optimizer_state_dict" in checkpoint:
+        print("[INFO] Loading optimizer")
+        # print("[DEBUG] Checkpoint optimizer_state_dict param_groups:")
+        # for i, group in enumerate(checkpoint["optimizer_state_dict"]["param_groups"]):
+        #     print(f"  Group {i}: {len(group['params'])} params")
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
-    # if lr_scheduler is not None and "lr_scheduler_state_dict" in checkpoint:
-    #     print("[INFO] Loading lr scheduler")
-    #     lr_scheduler.load_state_dict(checkpoint["lr_scheduler_state_dict"])
+    if lr_scheduler is not None and "lr_scheduler_state_dict" in checkpoint:
+        print("[INFO] Loading lr scheduler")
+        lr_scheduler.load_state_dict(checkpoint["lr_scheduler_state_dict"])
 
     return checkpoint
 
