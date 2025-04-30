@@ -13,13 +13,13 @@ num_classes: 100
 
 # training
 batch_size: 64
-num_workers: 48
-num_epochs: 50
+num_workers: 16
+num_epochs: 100
 mixed_precision: bf16
 
 # optimizer
-warmup_epochs: 5
-max_epochs: 50
+warmup_epochs: 10
+max_epochs: 100
 learning_rate: 5e-5
 weight_decay: 1e-4
 
@@ -27,7 +27,7 @@ weight_decay: 1e-4
 wandb_username: islakong-carnegie-mellon-university
 wandb_key: b6dff554fc854aea97af8dccb735c241a19a6615
 project_name: dl-hw5
-run_name: final-ddpm-vae-cfg-transformer
+run_name: newvae-ddpm-vae-cfg-transformer
 
 # # resume wandb
 # resume: True
@@ -92,7 +92,8 @@ predictor_type: epsilon
 
 # latent
 latent_ddpm: True
-freeze_vae_epoch: 10
+vae_ckpt: "/workspace/pretrained/Model.ckpt"
+freeze_vae_epoch: 1 # since this epoch, index starting from 1
 kl_beta: 0.0005
 lpips_lambda: 1.0
 vae_lambda: 0.05

@@ -201,6 +201,9 @@ def parse_args():
         "--latent_ddpm", type=str2bool, default=False, help="use vqvae for latent ddpm"
     )
     parser.add_argument(
+        "--vae_ckpt", type=str, default="pretrained/model.ckpt", help="pretrained vae ckpt"
+    )
+    parser.add_argument(
         "--freeze_vae_epoch",
         type=int,
         default=10,
@@ -488,7 +491,7 @@ def main():
     if args.latent_ddpm:
         vae = VAE(**args.vae_config)
         # NOTE: do not change this
-        vae.init_from_ckpt("pretrained/model.ckpt")
+        vae.init_from_ckpt(args.vae_ckpt)
         # Set VAE to trainable
         for param in vae.parameters():
             param.requires_grad = True
