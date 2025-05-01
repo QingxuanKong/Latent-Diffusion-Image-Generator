@@ -206,4 +206,5 @@ Overall, our experiments demonstrate that while VAE and CFG integration improves
 | DDIM                         | 97.42  | 5.22 ± 0.23   | 0.8346 |
 | DDPM + VAE + CFG             | 123.44 | 4.37 ± 0.19   | 0.7202 |
 | DDPM + VAE + CFG + Transformer | 121.07 | 4.67 ± 0.20   | 0.7113 |
-    Table.1 Inference FID and IS scores for different models
+
+Table 1. Inference FID and IS scores for different models
