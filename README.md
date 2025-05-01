@@ -1,87 +1,45 @@
-# IDL24Fall-HW5
+# HW5-README
 
-# Starter Code Usage
+# Objective
 
-**Training**
+This project aims to implement a Latent Diffusion Model (LDM) enhanced U-Net framework, which performs denoising in a compressed latent space using a pre-trained Variational Autoencoder (VAE) to reduce computational overhead while preserving fidelity. To further enhance the generation quality, we incorporate Classifier-Free Guidance (CFG)  for class-conditional generation and integrate Transformer blocks into the U-Net bottleneck to improve the model’s capacity for capturing long-range dependencies. Our objective is to develop a scalable, computationally efficient, and high-fidelity image generation pipeline.
 
-```
-python train.py --config configs/ddpm.yaml
-```
+# Wandb Log
 
-**Inference and Evaluating**
+https://wandb.ai/idl-/IDL-hw5-Ivy
 
-```
-python inference.py
-```
+https://wandb.ai/islakong-carnegie-mellon-university/dl-hw5
 
-# 1. Download the data
+https://wandb.ai/idl-/dl-hw5
 
-Please first download the data from here: https://drive.google.com/drive/u/0/folders/1Hr8LU7HHPEad8ALmMo5cvisazsm6zE8Z
+# Methodology
 
-After download please unzip the data with
+## U-Net Architecture
 
-```
-tar -xvf imagenet100_128x128.tar.gz
-```
+The U-Net is the backbone of our diffusion model, designed to predict noise at each timestep. It uses a symmetric encoder-decoder structure with skip connections, where the encoder reduces spatial resolution and increases channels, and the decoder reverses this process. Middle layers handle low-resolution features for better pattern recognition. Each level includes ResBlocks with normalization and residuals to support training. A sinusoidal embedding encodes the timestep, allowing the model to adjust to noise levels. Channel depth increases as resolution decreases to improve multi-scale feature learning.
 
-# 2.Implementing DDPM from Scratch
+## Schedulers
 
-This homework will start from implementing DDPM from scratch.
+The DDPM scheduler defines the noise variance schedule during both forward and reverse diffusion. We also experimented with DDIM. The DDIM scheduler accelerates sampling by redefining the reverse process without requiring a strict Markov chain. This allows the reverse process to skip multiple steps, significantly reducing the inference time. 
 
-We provide the basic code structure for you and you will be implementing the following modules (by filling all TODOs)):
+## Variational Autoencoder (VAE)
 
-```
-1. pipelines/ddpm.py
-2. schedulers/scheduling_ddpm.py
-3. train.py
-4. configs/ddpm.yaml
-```
+Variational Autoencoder (VAE) compresses input images into a lower-dimensional latent space through a probabilistic mapping to improve training efficiency.
 
-A very basic U-Net architecture is provided to you, and you will need to improve the architecture for better performacne.
+Operating in the latent space provides the following computational benefits:
 
-# 3. Implementing DDIM
+- A 16× reduction in space significantly decreases memory usage and computational cost.
+- Compression focuses modeling capacity on semantically meaningful variations rather than redundant pixel-level details.
+- Smoother latent distributions lead to more stable training dynamics and faster convergence.
 
-Implement the DDIM from scratch:
+## Classifier-Free Guidance (CFG)
 
-```
-1. schedulers/scheduling_ddpm.py
-2. create a config with ddim by setting use_ddim to True
-```
+Classifier-Free Guidance (CFG) improves alignment between generated samples and conditioning inputs (such as class labels or text prompts) without requiring a separate classifier.
 
-**NOTE: you need to set use_ddim to TRUE**
+## Transformer Block
 
-# 4. Implementing Latent DDPM
+The transformer Block is incorporated in the U-Net bottleneck module in place of the traditional ResNet block to further enhance the model's capacity. This modification allows the model to better capture long-range dependencies across spatial features at the lowest resolution, where computation is more efficient.
 
-Implement the Latent DDPM.
+The transformer block first flattens the feature map into a sequence of tokens and adds learnable positional embeddings. Each block then applies Adaptive Layer Normalization (AdaLN) conditioned on the timestep and optional class embedding, followed by Multi-Head Self-Attention and a two-layer MLP. Residual connections are used around both the attention and MLP sub-layers.
 
-The pre-trained weights of VAE and basic modules are provided.
-
-Download the pretrained weight here: and put it under a folder named 'pretrained' (create one if it doesn't exsit)
-
-You need to implement:
-
-```
-1. models/vae.py
-2. train.py with vae related stuff
-3. pipeline/ddpm.py with vae related stuff
-```
-
-**NOTE: you need to set use_vae to TRUE**
-
-# 5. Implementing CFG
-
-Implement CFG
-
-```
-1. models/class_embedder.py
-2. train.py with cfg related stuff
-3. pipeline/ddpm.py with cfg related stuff
-```
-
-**NOTE: you need to set use_cfg to TRUE**
-
-# 6. Evaluation
-
-```
-inference.py
-```
+# Results
