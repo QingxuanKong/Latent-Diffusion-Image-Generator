@@ -27,12 +27,12 @@ weight_decay: 1e-4
 wandb_username: islakong-carnegie-mellon-university
 wandb_key: b6dff554fc854aea97af8dccb735c241a19a6615
 project_name: dl-hw5
-run_name: newvae-ddpm-vae-cfg-transformer
+run_name: newvae-ddpm-vae-cfg-transformer-finetune
 
 # # resume wandb
 # resume: True
 # wandb_resume_id: "dpuac806"
-# resume_checkpoint_path: "/workspace/checkpoint_epoch_29.pth"
+# resume_checkpoint_path: "/workspace/checkpoint_epoch_59.pth"
 
 # # Ivy wandb
 # wandb_key: dbcb5b22a7512074ad91148adc5794d1955289ad
@@ -93,7 +93,7 @@ predictor_type: epsilon
 # latent
 latent_ddpm: True
 vae_ckpt: "/workspace/pretrained/Model.ckpt"
-freeze_vae_epoch: 1 # since this epoch, index starting from 1
+freeze_vae_epoch: 10 # since this epoch, index starting from 1
 kl_beta: 0.0005
 lpips_lambda: 1.0
 vae_lambda: 0.05
@@ -117,8 +117,7 @@ eval_every_n_epoch: 10 # it takes 10 min to generate 500 images for evaluation e
 eval_samples: 500 # 500
 eval_classes: 50 # 50
 
-# # inference
-# ckpt: "/jet/home/ikong/hw5/experiments/exp-1-unet(192,1-2-2-4,2-3,3)/checkpoints/checkpoint_epoch_49.pth"
-# inference_samples: 5000
+# inference
+ckpt: "/workspace/checkpoint_epoch_99.pth"
+inference_samples: 5000
 
-# 57.44, IS: 5.46 ± 0.19

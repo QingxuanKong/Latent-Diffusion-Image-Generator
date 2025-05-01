@@ -1,12 +1,12 @@
 seed: 42
 
-# DEBUG: Falses
-# output_dir: /workspace/experiments/
+DEBUG: False
+output_dir: /workspace/experiments/
 
 # dataset
 dataset: imagenet100
-data_dir: /jet/home/ygao8/hw5_student_starter_code/data
-val_data_dir: /jet/home/ygao8/hw5_student_starter_code/data/imagenet100_128x128/validation 
+data_dir: /workspace/data
+val_data_dir: /workspace/data/imagenet100_128x128/validation
 subset: 1.0
 image_size: 128 #128
 num_classes: 100
@@ -14,23 +14,23 @@ num_classes: 100
 # training
 batch_size: 64
 num_workers: 4
-num_epochs: 300
+num_epochs: 150
 
 # optimizer
-warmup_epochs: 30
-max_epochs: 400
-learning_rate: 1e-4
+warmup_epochs: 0
+max_epochs: 100
+learning_rate: 5e-5
 weight_decay: 1e-4
 
 # # resume wandb
-resume: False
-wandb_resume_id: "ut1briv6"
-resume_checkpoint_path: "/jet/home/ygao8/11785-hw5/experiments/exp-2-ddpm+vae+cfg--epoch300/checkpoints/last_epoch.pth"
+resume: True
+wandb_resume_id: "27ugesah"
+resume_checkpoint_path: "/workspace/experiments/exp-4-exp-4-ddpm+vae+cfg+vaeIDLmodel-fullprecision--epoch300/checkpoints/checkpoint_epoch_91.pth"
 
 # Ivy wandb
 wandb_key: dbcb5b22a7512074ad91148adc5794d1955289ad
 project_name: IDL-hw5-Ivy
-run_name: ddpm+vae+cfg+transformer--epoch150
+run_name: ddpm+vae+cfg+vaeIDLmodel-fullprecision--epoch300
 
 # # unet
 # unet_in_size: 64
@@ -92,7 +92,7 @@ use_ddim: False
 
 # checkpoint
 keep_last_n: 1 # including the last one
-keep_last_model: True
+keep_last_model: False
 keep_best_model: False
 
 #evaluation during training
@@ -102,5 +102,5 @@ eval_samples: 500 # 500
 eval_classes: 50 # 50
 
 # inference
-inference_samples: 200
-ckpt: "/jet/home/ygao8/11785-hw5/experiments/exp-0-ddpm+vae+cfg+transformer--epoch150/checkpoints/last_epoch.pth"
+inference_samples: 5000
+ckpt: "/workspace/experiments/exp-5-ddpm+vae+cfg+vaeIDLmodel-fullprecision--epoch300/checkpoints/checkpoint_epoch_100.pth"

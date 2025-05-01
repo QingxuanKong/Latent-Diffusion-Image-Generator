@@ -3,7 +3,6 @@ import os
 import wandb
 import shutil
 
-
 def load_checkpoint(
     unet,
     scheduler,
@@ -15,7 +14,7 @@ def load_checkpoint(
 ):
 
     print("[INFO] Loading checkpoint")
-    if "experiments/" not in checkpoint_path and 'workspace/' not in checkpoint_path:
+    if checkpoint_path and "experiments/" not in checkpoint_path and 'workspace/' not in checkpoint_path:
         artifact = wandb.run.use_artifact(
             f"{checkpoint_path}-last_model:latest", type="model"
         )
